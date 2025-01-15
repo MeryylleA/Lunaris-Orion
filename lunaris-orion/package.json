@@ -1,0 +1,25 @@
+{
+  "name": "lunaris-orion-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord para o Lunaris Orion - Gerador de Pixel Art com IA",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "stripe": "^14.10.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=16.9.0"
+  }
+} 

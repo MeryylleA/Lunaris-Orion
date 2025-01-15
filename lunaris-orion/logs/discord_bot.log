@@ -1,0 +1,32 @@
+2025-01-13 19:32:59,201 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-01-13 19:32:59,201 - discord.client - INFO - logging in using static token
+2025-01-13 19:33:03,543 - discord_bot - ERROR - Erro na configuração do bot: [WinError 1225] The remote computer refused the network connection
+2025-01-13 19:33:03,543 - discord_bot - ERROR - Erro ao iniciar bot: [WinError 1225] The remote computer refused the network connection
+2025-01-13 19:34:44,401 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-01-13 19:34:44,401 - discord.client - INFO - logging in using static token
+2025-01-13 19:34:48,744 - discord_bot - WARNING - Aviso: Não foi possível conectar ao banco de dados: [WinError 1225] The remote computer refused the network connection
+2025-01-13 19:34:48,744 - discord_bot - INFO - O bot continuará funcionando com funcionalidades limitadas
+2025-01-13 19:34:49,631 - discord_bot - ERROR - Erro na configuração do bot: Extension 'discord_bot.commands.subscription_commands' raised an error: AttributeError: module 'stripe' has no attribute 'Stripe'
+2025-01-13 19:34:49,647 - discord_bot - ERROR - Erro ao iniciar bot: Extension 'discord_bot.commands.subscription_commands' raised an error: AttributeError: module 'stripe' has no attribute 'Stripe'
+2025-01-13 19:36:22,703 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-01-13 19:36:22,703 - discord.client - INFO - logging in using static token
+2025-01-13 19:36:27,040 - discord_bot - WARNING - Aviso: Não foi possível conectar ao banco de dados: [WinError 1225] The remote computer refused the network connection
+2025-01-13 19:36:27,040 - discord_bot - INFO - O bot continuará funcionando com funcionalidades limitadas
+2025-01-13 19:36:27,044 - discord_bot - INFO - Comandos de assinatura carregados
+2025-01-13 19:36:27,400 - discord_bot - INFO - Comandos slash sincronizados
+2025-01-13 19:36:27,601 - discord.gateway - INFO - Shard ID None has connected to Gateway (Session ID: 9856dac76edf154f3a2b2284f03f6fe1).
+2025-01-13 19:36:29,617 - discord_bot - INFO - Bot iniciado como Moon Cloud Test
+2025-01-13 19:36:29,617 - discord_bot - INFO - ID do Bot: 1312762095196045332
+2025-01-13 19:36:29,617 - discord_bot - INFO - Status: Online
+2025-01-13 19:38:46,073 - discord_bot - INFO - Bot encerrado pelo usuário
+2025-01-13 19:43:15,446 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-01-13 19:43:15,447 - discord.client - INFO - logging in using static token
+2025-01-13 19:43:19,998 - discord_bot - WARNING - Aviso: Não foi possível conectar ao banco de dados: [WinError 1225] The remote computer refused the network connection
+2025-01-13 19:43:19,998 - discord_bot - INFO - O bot continuará funcionando com funcionalidades limitadas
+2025-01-13 19:43:19,998 - discord_bot - INFO - Comandos carregados
+2025-01-13 19:43:20,262 - discord_bot - INFO - Comandos slash sincronizados
+2025-01-13 19:43:20,565 - discord.gateway - INFO - Shard ID None has connected to Gateway (Session ID: 59c698c84f2b409e6a6e8cebdf32bccd).
+2025-01-13 19:43:22,592 - discord_bot - INFO - Bot iniciado como Moon Cloud Test
+2025-01-13 19:43:22,592 - discord_bot - INFO - ID do Bot: 1312762095196045332
+2025-01-13 19:43:22,592 - discord_bot - INFO - Status: Online
+2025-01-13 19:45:04,042 - discord_bot - INFO - Bot encerrado pelo usuário
