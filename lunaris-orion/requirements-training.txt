@@ -1,0 +1,28 @@
+# Dependências principais
+torch>=2.1.0
+accelerate>=0.27.0
+transformers>=4.38.0
+diffusers>=0.26.0
+datasets>=2.17.0
+
+# Otimizações
+bitsandbytes>=0.41.0
+xformers>=0.0.23
+triton>=2.1.0
+
+# Processamento de dados
+Pillow>=10.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Monitoramento
+psutil>=5.9.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Logging
+tqdm>=4.66.0
+wandb>=0.16.0
+
+# Utilitários
+python-dotenv>=1.0.0 
