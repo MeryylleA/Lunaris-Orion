@@ -1,5 +1,0 @@
-2025-01-18 15:36:15,182 - INFO - Using device: cpu
-2025-01-18 15:36:26,768 - INFO - Model created with new architecture
-2025-01-18 15:36:27,769 - INFO - Loaded dataset with 1000 samples
-2025-01-18 15:36:28,267 - INFO - Loaded dataset with 1000 samples
-2025-01-18 15:36:28,269 - INFO - Starting epoch 1/50
