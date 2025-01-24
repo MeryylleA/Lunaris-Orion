@@ -8,18 +8,41 @@ Um modelo VAE (Variational Autoencoder) especializado em geração e reconstruç
 
 ## 🏗️ Arquitetura
 
-<div align="center">
-  <img src="docs/images/lunar_core_architecture.svg" alt="Arquitetura do Lunar Core">
-  <br>
-  <em>Arquitetura detalhada do modelo Lunar Core VAE</em>
-</div>
+<p align="center">
+  <img src="docs/images/lunar_core_architecture.svg" alt="Arquitetura do Lunar Core" width="500">
+</p>
 
-O Lunar Core utiliza uma arquitetura VAE (Variational Autoencoder) especializada com:
+<details>
+<summary><strong>Estrutura Detalhada do Modelo</strong></summary>
+
+```
+Input (16×16×3) → Encoder
+  ├─ Conv2D (64) + BN + ReLU
+  ├─ 3× ResBlock (64)
+  ├─ DownConv (128)
+  ├─ 3× ResBlock (128)
+  ├─ DownConv (256)
+  ├─ 3× ResBlock (256)
+  └─ Dense → Latent (256)
+      ↓
+Latent Space (256)
+      ↓
+Dense → Reshape → Decoder
+  ├─ 3× ResBlock (256)
+  ├─ UpConv (128)
+  ├─ 3× ResBlock (128)
+  ├─ UpConv (64)
+  ├─ 3× ResBlock (64)
+  ├─ Conv2D (3) + Tanh
+  └─ Output (16×16×3)
+```
+</details>
+
+### Componentes Principais:
 - **Encoder**: Comprime a imagem em um espaço latente de 256 dimensões
 - **Decoder**: Reconstrói a imagem a partir do espaço latente
-- **Blocos Residuais**: 3 blocos por nível de resolução para melhor aprendizado
-- **Normalização**: BatchNorm em todas as camadas convolucionais
-- **Skip Connections**: Conexões residuais para preservar detalhes
+- **Blocos Residuais**: 3 blocos por nível para melhor aprendizado
+- **Skip Connections**: Conexões residuais preservam detalhes
 
 ## 🌟 Características
 
