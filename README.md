@@ -6,6 +6,21 @@ Um modelo VAE (Variational Autoencoder) especializado em geração e reconstruç
 
 [Aqui iremos adicionar imagens de exemplo - antes/depois da reconstrução]
 
+## 🏗️ Arquitetura
+
+<div align="center">
+  <img src="docs/images/lunar_core_architecture.svg" alt="Arquitetura do Lunar Core">
+  <br>
+  <em>Arquitetura detalhada do modelo Lunar Core VAE</em>
+</div>
+
+O Lunar Core utiliza uma arquitetura VAE (Variational Autoencoder) especializada com:
+- **Encoder**: Comprime a imagem em um espaço latente de 256 dimensões
+- **Decoder**: Reconstrói a imagem a partir do espaço latente
+- **Blocos Residuais**: 3 blocos por nível de resolução para melhor aprendizado
+- **Normalização**: BatchNorm em todas as camadas convolucionais
+- **Skip Connections**: Conexões residuais para preservar detalhes
+
 ## 🌟 Características
 
 - **Arquitetura Especializada**:
