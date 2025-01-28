@@ -102,20 +102,12 @@ Conv (3x3, 3 filtros) + Tanh
 Output (16x16x3)
 ```
 
-## 📊 Resultados
-
-- **Métricas de Treinamento**:
-  - Loss inicial: ~0.3864
-  - Loss final: ~0.0943
-  - Validation Loss: ~0.0849
-  - Tempo médio por época: 173s
-
 ## 🚀 Instalação
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/lunar-core.git
-cd lunar-core
+git clone https://github.com/MeryylleA/Lunaris-Orion.git
+cd lunaris-orion
 ```
 
 2. Instale as dependências:
@@ -167,10 +159,10 @@ Se você usar este modelo em sua pesquisa, por favor cite:
 ```bibtex
 @software{lunar_core2024,
   title={Lunar Core: A Specialized VAE for Pixel Art Generation},
-  author={Seu Nome},
-  year={2024},
-  publisher={GitHub},
-  url={https://github.com/seu-usuario/lunar-core}
+  author={Francisco},
+  year={2025},
+  publisher={Moon Cloud Services},
+  url={(https://github.com/MeryylleA/Lunaris-Orion)}
 }
 ```
 
