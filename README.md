@@ -2,10 +2,6 @@
 
 Um modelo VAE (Variational Autoencoder) especializado em geração e reconstrução de pixel art 16x16, implementado em JAX e Flax.
 
-## 🎨 Demonstração
-
-[Aqui iremos adicionar imagens de exemplo - antes/depois da reconstrução]
-
 ## 🏗️ Arquitetura
 
 <p align="center">
