@@ -1,0 +1,180 @@
+# Guia para IAs Assistentes - Projeto LunarisCore
+
+## 1. Visão Geral do Projeto
+
+O LunarisCore é um modelo VAE (Variational Autoencoder) especializado em geração de pixel art 16x16 com suporte a condicionamento por texto. O projeto é implementado em JAX/Flax e possui uma arquitetura modular.
+
+## 2. Estrutura Essencial (NÃO MODIFICAR)
+
+Os seguintes componentes são CRÍTICOS e não devem ser alterados estruturalmente:
+
+### 2.1 Arquitetura Base
+- Encoder-Decoder VAE
+- TextEncoder baseado em transformer
+- Sistema de fusão latente (concat/add/gate)
+- Dimensões do modelo (16x16x3, latent_dim=256)
+
+### 2.2 Arquivos Core
+```
+models/
+  ├── lunar_core.py      # Modelo principal - preservar arquitetura
+  └── text_encoder.py    # Encoder de texto - manter estrutura transformer
+```
+
+### 2.3 Configurações Base
+```yaml
+# Configurações que devem ser preservadas
+model:
+  input_shape: [16, 16, 3]
+  latent_dim: 256
+  filters: [64, 128, 256, 512]
+```
+
+## 3. Áreas para Assistência
+
+### 3.1 Otimizações Permitidas
+- Melhorias de performance
+- Otimização de memória
+- Refinamento de hiperparâmetros
+- Adição de novas funcionalidades
+
+### 3.2 Extensões Sugeridas
+- Implementação de novas técnicas de data augmentation
+- Melhorias no sistema de logging
+- Adição de métricas de avaliação
+- Otimização do pipeline de dados
+
+## 4. Diretrizes de Código
+
+### 4.1 Estilo
+- Manter docstrings em português do Brasil
+- Seguir convenções JAX/Flax
+- Usar type hints
+- Manter logging consistente
+
+### 4.2 Padrões de Implementação
+```python
+# Exemplo de estilo para novos módulos
+class NovoModulo(nn.Module):
+    """
+    Docstring em português explicando a funcionalidade.
+    """
+    def setup(self):
+        # Configuração clara
+        pass
+    
+    def __call__(self, x, training: bool = False):
+        # Implementação limpa
+        pass
+```
+
+## 5. Áreas de Cuidado Especial
+
+### 5.1 Não Modificar
+- Dimensões de entrada/saída
+- Estrutura do espaço latente
+- Sistema de fusão texto-imagem
+- Pipeline de treinamento base
+
+### 5.2 Preservar Funcionalidades
+- Geração condicional por texto
+- Interpolação no espaço latente
+- Sistema de checkpointing
+- Conversão de formatos de dados
+
+## 6. Sugestões de Melhorias
+
+### 6.1 Prioridade Alta
+- Otimização do TextEncoder
+- Melhoria na estabilidade do treinamento
+- Redução do uso de memória
+- Aceleração do pipeline de dados
+
+### 6.2 Prioridade Média
+- Interface de usuário melhorada
+- Visualizações interativas
+- Métricas adicionais
+- Documentação expandida
+
+## 7. Convenções de Nomenclatura
+
+### 7.1 Padrões
+- Classes: PascalCase (ex: TextEncoder)
+- Funções: snake_case (ex: compute_loss)
+- Constantes: UPPER_CASE (ex: MAX_BATCH_SIZE)
+- Variáveis: snake_case (ex: batch_size)
+
+### 7.2 Prefixos/Sufixos
+- Privado: _nome
+- Abstrato: AbstractNome
+- Interface: INome
+
+## 8. Testes e Validação
+
+### 8.1 Requisitos
+- Manter cobertura de testes
+- Validar alterações de performance
+- Verificar compatibilidade com GPU/CPU
+- Testar diferentes configurações
+
+### 8.2 Métricas Importantes
+- Loss de reconstrução
+- KL divergence
+- FID score (se implementado)
+- Tempo de treinamento
+
+## 9. Documentação
+
+### 9.1 Docstrings
+```python
+def nova_funcao(param1: int, param2: str) -> Dict:
+    """
+    Breve descrição em português.
+    
+    Args:
+        param1: Descrição do parâmetro
+        param2: Descrição do parâmetro
+        
+    Returns:
+        Dict contendo resultados
+        
+    Raises:
+        ValueError: Quando param1 < 0
+    """
+    pass
+```
+
+### 9.2 Comentários
+- Usar comentários para lógica complexa
+- Explicar decisões de implementação
+- Documentar limitações conhecidas
+
+## 10. Fluxo de Trabalho Recomendado
+
+1. Entender o contexto antes de sugerir mudanças
+2. Priorizar otimizações não-invasivas
+3. Manter compatibilidade com código existente
+4. Documentar todas as alterações
+5. Seguir as convenções estabelecidas
+
+## 11. Limitações e Restrições
+
+- Não alterar a arquitetura base
+- Manter compatibilidade com checkpoints existentes
+- Preservar interface de treinamento/inferência
+- Respeitar limites de memória/performance
+
+## 12. Recursos e Referências
+
+- Documentação JAX/Flax
+- Arquitetura VAE original
+- Implementações transformer
+- Técnicas de otimização JAX
+
+## 13. Contato e Suporte
+
+Para questões sobre:
+- Arquitetura: Consultar docs/lunaris_core_architecture.txt
+- Configurações: Verificar config/config.yaml
+- Treinamento: Ver training/train.py
+- Dados: Consultar data/dataset_loader.py 

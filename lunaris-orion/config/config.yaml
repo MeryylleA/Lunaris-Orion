@@ -1,0 +1,55 @@
+model:
+  name: "lunar_core"
+  input_shape: [16, 16, 3]
+  latent_dim: 256
+  num_residual_blocks: 3
+  filters: [64, 128, 256]
+  use_attention: true
+  use_text: true  # Habilita suporte a texto
+  text_encoder:
+    hidden_dim: 1024
+    intermediate_dim: 512
+    num_layers: 3
+    num_heads: 8
+    max_length: 128
+    dropout_rate: 0.1
+  latent_fusion:
+    type: "concat"  # "concat", "add", ou "gate"
+  transfer_learning:
+    enabled: false  # Ativar/desativar transferência de aprendizado
+    checkpoint_path: null  # Caminho para o checkpoint a ser carregado (null para não usar)
+    learning_rate_factor: 0.5  # Fator para reduzir a taxa de aprendizado ao usar transfer learning
+
+training:
+  mode: "pixel_art"  # "pixel_art" ou "prompt"
+  batch_size: 64
+  learning_rate: 0.0002
+  beta1: 0.5
+  beta2: 0.999
+  num_epochs: 50
+  save_interval: 5
+  eval_interval: 1
+
+data:
+  dataset_path: "data/sprites.npy"
+  labels_path: "data/labels.csv"
+  sprite_labels_path: "data/sprites_labels.npy"
+  validation_split: 0.1
+  shuffle_buffer: 1000
+  prompt_cache_dir: "data/prompt_cache"  # Diretório para cache dos prompts
+  prompt_dataset:
+    name: "diffusiondb-pixelart"  # Nome do dataset de prompts
+    subset: "2k_random_1k"  # Subset a ser usado
+    min_prompt_length: 3  # Tamanho mínimo do prompt
+
+hardware:
+  gpu_memory_limit: 0.9  # Porcentagem máxima de memória GPU a ser usada
+  mixed_precision: true
+  device_priority: ["gpu", "cpu"]
+  
+logging:
+  wandb_project: "lunar_core"
+  log_dir: "logs"
+  output_dir: "outputs"
+  checkpoint_dir: "checkpoints"
+  sample_interval: 100  # Intervalo para gerar amostras durante treinamento 
