@@ -29,6 +29,19 @@ training:
   num_epochs: 50
   save_interval: 5
   eval_interval: 1
+  auto_resume: true  # Tenta recuperar automaticamente do último checkpoint válido
+  max_recovery_attempts: 3  # Número máximo de tentativas de recuperação por erro
+  error_cooldown: 30  # Tempo de espera (segundos) entre tentativas de recuperação
+  generation:
+    enabled: true  # Habilita geração de amostras durante treinamento
+    num_samples: 16  # Número de amostras para gerar
+    interval: 5  # Intervalo (em épocas) para gerar amostras
+    prompts:  # Lista de prompts para geração condicional (modo prompt)
+      - "A cute pixel art cat"
+      - "A pixel art castle at night"
+      - "A pixel art dragon breathing fire"
+      - "A pixel art forest with a river"
+      - "A pixel art spaceship in orbit"
 
 data:
   dataset_path: "data/sprites.npy"
@@ -52,4 +65,19 @@ logging:
   log_dir: "logs"
   output_dir: "outputs"
   checkpoint_dir: "checkpoints"
-  sample_interval: 100  # Intervalo para gerar amostras durante treinamento 
+  sample_interval: 100  # Intervalo para gerar amostras durante treinamento
+  log_level: "INFO"  # Nível de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  save_generations: true  # Salva gerações em W&B
+
+monitoring:
+  max_epoch_time: 3600  # Tempo máximo por época em segundos
+  loss_spike_threshold: 5.0  # Limiar para detectar spikes na loss
+  max_gradient_norm: 100.0  # Norma máxima do gradiente
+  min_learning_rate: 1e-8  # Taxa de aprendizado mínima
+  nan_check_frequency: 100  # Frequência de verificação de NaN/Inf (em batches)
+
+checkpointing:
+  max_checkpoints: 5  # Número máximo de checkpoints mantidos
+  validation_frequency: 1000  # Frequência de validação de checkpoints (em batches)
+  save_best_only: true  # Salva apenas checkpoints com melhor performance
+  backup_dir: "checkpoints/backup"  # Diretório para backups de emergência 
