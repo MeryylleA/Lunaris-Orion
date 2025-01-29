@@ -2,7 +2,7 @@
 
 A Variational Autoencoder (VAE) with self-attention mechanisms designed specifically for pixel art generation and manipulation. This project combines the power of VAEs with modern deep learning techniques to create a robust model for pixel art processing.
 
-![LunarCore Architecture](lunar_core_architecture_detailed.png)
+![LunarCore Architecture](lunar_core_architecture.png)
 
 ## Features
 
