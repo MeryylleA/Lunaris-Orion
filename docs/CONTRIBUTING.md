@@ -32,7 +32,6 @@ This project and everyone participating in it is governed by our Code of Conduct
 
    # Install dependencies
    pip install -r requirements.txt
-   pip install -r requirements-dev.txt  # Development dependencies
    ```
 
 3. **Create a Branch**
