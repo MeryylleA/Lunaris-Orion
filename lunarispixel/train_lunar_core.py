@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from multiprocessing import freeze_support
 
-# Importar o modelo do arquivo lunar_core_model.py
+# Import the model from the lunar_core_model.py file
 from lunar_core_model import LunarCoreVAE
 
 # Dataset
@@ -40,51 +40,51 @@ class PixelArtDataset(Dataset):
         return image, -1
 
 def main():
-    # Argumentos da linha de comando
-    parser = argparse.ArgumentParser(description="Treinamento do LunarCoreVAE")
+    # Command line arguments
+    parser = argparse.ArgumentParser(description="Training of LunarCoreVAE")
     parser.add_argument(
         "--checkpoint",
         type=str,
         default=None,
-        help="Caminho para o checkpoint a ser carregado (opcional)",
+        help="Path to the checkpoint to be loaded (optional)",
     )
     parser.add_argument(
-        "--epochs", type=int, default=300, help="Número de épocas para treinar"
+        "--epochs", type=int, default=300, help="Number of epochs to train"
     )
     parser.add_argument(
-        "--batch_size", type=int, default=512, help="Tamanho do batch"
+        "--batch_size", type=int, default=512, help="Batch size"
     )
     parser.add_argument(
-        "--learning_rate", type=float, default=0.001, help="Taxa de aprendizado"
+        "--learning_rate", type=float, default=0.001, help="Learning rate"
     )
     parser.add_argument(
-        "--latent_dim", type=int, default=128, help="Dimensão do espaço latente"
+        "--latent_dim", type=int, default=128, help="Dimension of the latent space"
     )
     parser.add_argument(
-        "--kl_weight", type=float, default=0.0005, help="Peso da divergência KL"
+        "--kl_weight", type=float, default=0.0005, help="KL divergence weight"
     )
     parser.add_argument(
-        "--data_dir", type=str, default=".", help="Diretório dos dados de treinamento"
+        "--data_dir", type=str, default=".", help="Training data directory"
     )
     parser.add_argument(
-        "--output_dir", type=str, default="output", help="Diretório de saída"
+        "--output_dir", type=str, default="output", help="Output directory"
     )
     parser.add_argument(
-        "--save_every", type=int, default=10, help="Salvar checkpoint a cada X épocas"
+        "--save_every", type=int, default=10, help="Save checkpoint every X epochs"
     )
     parser.add_argument(
-        "--lr_step_size", type=int, default=10, help="Reduzir lr a cada X épocas"
+        "--lr_step_size", type=int, default=10, help="Reduce lr every X epochs"
     )
     parser.add_argument(
-        "--lr_gamma", type=float, default=0.8, help="Fator de redução da lr"
+        "--lr_gamma", type=float, default=0.8, help="LR reduction factor"
     )
     parser.add_argument(
-        "--num_workers", type=int, default=0, help="Número de workers para o DataLoader"
+        "--num_workers", type=int, default=0, help="Number of workers for DataLoader"
     )
 
     args = parser.parse_args()
 
-    # Hiperparâmetros
+    # Hyperparameters
     epochs = args.epochs
     batch_size = args.batch_size
     learning_rate = args.learning_rate
@@ -95,10 +95,10 @@ def main():
     save_every = args.save_every
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Função de perda (MSE + KL Divergence)
+    # Loss function (MSE + KL Divergence)
     loss_fn = nn.MSELoss(reduction="mean")
 
-    # Transformações
+    # Transformations
     transform = transforms.Compose([
         transforms.Resize((16, 16)),
         transforms.Pad(2, padding_mode='reflect'),
@@ -109,10 +109,10 @@ def main():
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
-    # Dataset e DataLoader
+    # Dataset and DataLoader
     dataset = PixelArtDataset(root_dir=data_dir, transform=transform)
     
-    # Dividir dataset
+    # Split dataset
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(
@@ -138,7 +138,7 @@ def main():
         pin_memory=True
     )
 
-    # Função para salvar as imagens
+    # Function to save images
     def save_images(epoch, input_img, generated_img, img_name):
         output_dir_epoch = os.path.join(output_dir, f"epoch_{epoch}")
         os.makedirs(output_dir_epoch, exist_ok=True)
@@ -152,10 +152,10 @@ def main():
         input_pil.save(os.path.join(output_dir_epoch, f"{img_name}_input.png"))
         generated_pil.save(os.path.join(output_dir_epoch, f"{img_name}_generated.png"))
 
-    # Instanciar o modelo
+    # Instantiate the model
     model = LunarCoreVAE(latent_dim=latent_dim).to(device)
 
-    # Inicialização dos pesos
+    # Weight initialization
     def init_weights(m):
         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
             nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="leaky_relu", a=0.2)
@@ -167,7 +167,7 @@ def main():
 
     model.apply(init_weights)
 
-    # Otimizador (AdamW)
+    # Optimizer (AdamW)
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
 
     # Learning Rate Scheduler
@@ -176,7 +176,7 @@ def main():
     # Mixed Precision
     scaler = torch.cuda.amp.GradScaler()
 
-    # Carregar checkpoint, se especificado
+    # Load checkpoint, if specified
     start_epoch = 0
     best_val_loss = float('inf')
     if args.checkpoint:
@@ -189,25 +189,25 @@ def main():
         if "best_val_loss" in checkpoint:
             best_val_loss = checkpoint["best_val_loss"]
         loaded_loss = checkpoint["loss"]
-        print(f"Checkpoint carregado da época {start_epoch}")
+        print(f"Checkpoint loaded from epoch {start_epoch}")
         print(f"Loss: {loaded_loss:.4f}")
         if "val_loss" in checkpoint:
             print(f"Val Loss: {checkpoint['val_loss']:.4f}")
-        print(f"Melhor perda de validação até agora: {best_val_loss:.4f}")
+        print(f"Best validation loss so far: {best_val_loss:.4f}")
 
     # TensorBoard
     writer = SummaryWriter(f"runs/lunar_core_experiment_{start_epoch}")
 
-    # Ativar o benchmark do cuDNN
+    # Enable cuDNN benchmark
     torch.backends.cudnn.benchmark = True
 
-    # Loop de treinamento
+    # Training loop
     for epoch in range(start_epoch, epochs):
-        # Modo de treinamento
+        # Training mode
         model.train()
         train_loss = 0.0
         
-        # Loop de treinamento
+        # Training loop
         for i, (images, labels) in enumerate(tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs} (Train)")):
             images = images.to(device)
 
@@ -219,30 +219,30 @@ def main():
                 kl_divergence = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp())
                 loss = recon_loss + kl_weight * kl_divergence
 
-            # Backprop com scaler
+            # Backprop with scaler
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
 
             train_loss += loss.item()
 
-            # Imprimir estatísticas
-            if (i + 1) % 10 == 0:  # Reduzir a frequência de impressão
+            # Print statistics
+            if (i + 1) % 10 == 0:  # Reduce print frequency
                 print(
                     f"Epoch [{epoch+1}/{epochs}], Batch [{i+1}/{len(train_dataloader)}], "
                     f"Loss: {loss.item():.4f}, Recon Loss: {recon_loss.item():.4f}, KL Div: {kl_divergence.item():.4f}"
                 )
 
-            # Adicionar métricas ao TensorBoard
+            # Add metrics to TensorBoard
             step = epoch * len(train_dataloader) + i
             writer.add_scalar('Loss/Train/Total', loss.item(), step)
             writer.add_scalar('Loss/Train/Reconstruction', recon_loss.item(), step)
             writer.add_scalar('Loss/Train/KL_Divergence', kl_divergence.item(), step)
 
-        # Calcular perda média de treinamento
+        # Calculate average training loss
         train_loss /= len(train_dataloader)
         
-        # Modo de validação
+        # Validation mode
         model.eval()
         val_loss = 0.0
         val_recon_loss = 0.0
@@ -262,29 +262,29 @@ def main():
                 val_recon_loss += recon_loss.item()
                 val_kl_loss += kl_divergence.item()
 
-                # Salvar imagens de validação (primeira batch apenas)
+                # Save validation images (first batch only)
                 if i == 0 and (epoch + 1) % 5 == 0:
                     img_name = f"val_batch_{epoch+1}"
                     save_images(epoch + 1, images[0].cpu(), recon_images[0].cpu(), img_name)
                     writer.add_images('Images/Val/Original', images, epoch + 1)
                     writer.add_images('Images/Val/Reconstructed', recon_images, epoch + 1)
 
-        # Calcular perdas médias de validação
+        # Calculate average validation losses
         val_loss /= len(val_dataloader)
         val_recon_loss /= len(val_dataloader)
         val_kl_loss /= len(val_dataloader)
 
-        # Adicionar métricas de validação ao TensorBoard
+        # Add validation metrics to TensorBoard
         writer.add_scalar('Loss/Val/Total', val_loss, epoch)
         writer.add_scalar('Loss/Val/Reconstruction', val_recon_loss, epoch)
         writer.add_scalar('Loss/Val/KL_Divergence', val_kl_loss, epoch)
 
-        # Imprimir estatísticas da época
+        # Print epoch statistics
         print(f"\nEpoch {epoch+1} Summary:")
         print(f"Train Loss: {train_loss:.4f}")
         print(f"Val Loss: {val_loss:.4f}")
 
-        # Salvar o melhor modelo
+        # Save the best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_model_path = os.path.join(output_dir, "best_model.pth")
@@ -297,12 +297,12 @@ def main():
                 "loss": val_loss,
                 "best_val_loss": best_val_loss,
             }, best_model_path)
-            print(f"Melhor modelo salvo em {best_model_path} com perda de validação: {val_loss:.4f}")
+            print(f"Best model saved at {best_model_path} with validation loss: {val_loss:.4f}")
 
-        # Atualizar a taxa de aprendizado
+        # Update learning rate
         scheduler.step()
 
-        # Salvar checkpoint regular
+        # Save regular checkpoint
         if (epoch + 1) % save_every == 0:
             checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch+1}.pth")
             os.makedirs(output_dir, exist_ok=True)
@@ -315,13 +315,13 @@ def main():
                 "val_loss": val_loss,
                 "best_val_loss": best_val_loss,
             }, checkpoint_path)
-            print(f"Checkpoint salvo em {checkpoint_path}")
+            print(f"Checkpoint saved at {checkpoint_path}")
 
-    # Fechar o writer do TensorBoard
+    # Close TensorBoard writer
     writer.close()
 
-    print("Treinamento concluído!")
-    print(f"Melhor perda de validação: {best_val_loss:.4f}")
+    print("Training completed!")
+    print(f"Best validation loss: {best_val_loss:.4f}")
 
 if __name__ == '__main__':
     freeze_support()
