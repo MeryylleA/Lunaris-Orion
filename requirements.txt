@@ -1,0 +1,11 @@
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+numpy==1.24.3
+pillow>=10.0.0
+tqdm>=4.65.0
+tensorboard>=2.13.0
+matplotlib>=3.7.1
+scipy>=1.10.1
+einops>=0.6.1  # For attention mechanisms
+pyyaml>=6.0.1  # For config files 
