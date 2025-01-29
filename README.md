@@ -122,7 +122,7 @@ If you use this code for your research, please cite:
   title = {Lunaris-Orion: Pixel Art VAE with Self-Attention},
   year = {2025},
   author = {Moon Cloud Services},
-  url = {https://github.com/yourusername/lunaris-orion}
+  url = {https://github.com/MeryylleA/Lunaris-Orion}
 }
 ```
 
