@@ -69,15 +69,15 @@ class LunarCoreEncoder(nn.Module):
         self.bn4 = nn.BatchNorm2d(512)
         self.res4 = ResNetBlock(512, activation=activation)
 
-        # Calcular o tamanho do tensor achatado
-        self.flatten_size = 512 * 2 * 2  # Para imagem 16x16, após 3 downsamplings: 16->8->4->2
+        # Calculate the size of the flattened tensor
+        self.flatten_size = 512 * 2 * 2  # For 16x16 image, after 3 downsamplings: 16->8->4->2
 
         self.flatten = nn.Flatten()
         self.fc_mean = nn.Linear(self.flatten_size, latent_dim)
         self.fc_logvar = nn.Linear(self.flatten_size, latent_dim)
 
     def forward(self, x):
-        # Verificar dimensões de entrada
+        # Check input dimensions
         batch_size = x.size(0)
         
         x1 = self.conv1(x)  # 16x16
@@ -113,62 +113,62 @@ class LunarCoreDecoder(nn.Module):
         super(LunarCoreDecoder, self).__init__()
         self.activation = activation
 
-        # Calcular o tamanho do tensor inicial
-        self.initial_size = 512 * 2 * 2  # Mesmo tamanho do encoder após flatten
+        # Calculate the size of the initial tensor
+        self.initial_size = 512 * 2 * 2  # Same size as the encoder after flattening
 
         self.fc = nn.Linear(latent_dim, self.initial_size)
-        self.unflatten = nn.Unflatten(1, (512, 2, 2))  # Reshape para (batch_size, 512, 2, 2)
+        self.unflatten = nn.Unflatten(1, (512, 2, 2))  # Resize to (lot_size, 512, 2, 2)
 
         self.res4 = ResNetBlock(512, activation=activation)
         self.up1 = nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1)  # 2x2 -> 4x4
         self.bn1 = nn.BatchNorm2d(256)
         self.attn2 = SelfAttention2d(256)
-        self.res3 = ResNetBlock(512, activation=activation, dropout_rate=0.2)  # 512 por causa da concatenação
+        self.res3 = ResNetBlock(512, activation=activation, dropout_rate=0.2)  # 512 because of concatenation
 
         self.up2 = nn.ConvTranspose2d(512, 128, kernel_size=4, stride=2, padding=1)  # 4x4 -> 8x8
         self.bn2 = nn.BatchNorm2d(128)
         self.attn1 = SelfAttention2d(128)
-        self.res2 = ResNetBlock(256, activation=activation, dropout_rate=0.2)  # 256 por causa da concatenação
+        self.res2 = ResNetBlock(256, activation=activation, dropout_rate=0.2)  # 256 because of concatenation
 
         self.up3 = nn.ConvTranspose2d(256, 64, kernel_size=4, stride=2, padding=1)  # 8x8 -> 16x16
         self.bn3 = nn.BatchNorm2d(64)
-        self.res1 = ResNetBlock(128, activation=activation, dropout_rate=0.2)  # 128 por causa da concatenação
+        self.res1 = ResNetBlock(128, activation=activation, dropout_rate=0.2)  # 128 because of concatenation
 
         self.conv_out = nn.Conv2d(128, 3, kernel_size=3, padding=1)
 
     def forward(self, z, skips):
         x1, x2, x3 = skips
 
-        # Projetar o vetor latente e remodelar
+        # Project the latent vector and reshape
         x = self.fc(z)
         x = self.activation(x)
         x = self.unflatten(x)  # (batch_size, 512, 2, 2)
         x = self.res4(x)
 
-        # Primeiro upsampling: 2x2 -> 4x4
+        # First upsampling: 2x2 -> 4x4
         x = self.up1(x)
         x = self.bn1(x)
         x = self.activation(x)
         x = self.attn2(x)
-        x = torch.cat([x, x3], dim=1)  # Concatenar com skip connection
+        x = torch.cat([x, x3], dim=1)  # Concatenate with skip connection
         x = self.res3(x)
 
-        # Segundo upsampling: 4x4 -> 8x8
+        # Second upsampling: 4x4 -> 8x8
         x = self.up2(x)
         x = self.bn2(x)
         x = self.activation(x)
         x = self.attn1(x)
-        x = torch.cat([x, x2], dim=1)  # Concatenar com skip connection
+        x = torch.cat([x, x2], dim=1)  # Concatenate with skip connection
         x = self.res2(x)
 
-        # Terceiro upsampling: 8x8 -> 16x16
+        # Third upsampling: 8x8 -> 16x16
         x = self.up3(x)
         x = self.bn3(x)
         x = self.activation(x)
-        x = torch.cat([x, x1], dim=1)  # Concatenar com skip connection
+        x = torch.cat([x, x1], dim=1)  # Concatenate with skip connection
         x = self.res1(x)
 
-        # Camada de saída
+        # Output layer
         x = self.conv_out(x)
         x = torch.tanh(x)
 
