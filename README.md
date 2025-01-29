@@ -120,8 +120,8 @@ If you use this code for your research, please cite:
 ```bibtex
 @software{lunaris_orion,
   title = {Lunaris-Orion: Pixel Art VAE with Self-Attention},
-  year = {2024},
-  author = {Your Name},
+  year = {2025},
+  author = {Moon Cloud Services},
   url = {https://github.com/yourusername/lunaris-orion}
 }
 ```
