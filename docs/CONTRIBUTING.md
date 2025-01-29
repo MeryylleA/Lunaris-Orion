@@ -175,8 +175,6 @@ Types:
 
 1. **Documentation**
    - [Architecture Documentation](architecture.md)
-   - [API Reference](api.md)
-   - [Examples](../examples)
 
 2. **Tools**
    - PyTorch Documentation
