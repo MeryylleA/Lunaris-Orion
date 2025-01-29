@@ -20,7 +20,7 @@ This project and everyone participating in it is governed by our Code of Conduct
 
 1. **Fork the Repository**
    - Click the Fork button in the top right corner of the repository page
-   - Clone your fork locally: `git clone https://github.com/your-username/lunaris-orion.git`
+   - Clone your fork locally: `git clone https://github.com/MeryylleA/Lunaris-Orion.git`
 
 2. **Set Up Development Environment**
    ```bash
