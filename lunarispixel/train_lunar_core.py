@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
+from torchvision.utils import save_image
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim.lr_scheduler import StepLR
