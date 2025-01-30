@@ -231,9 +231,9 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
 
     # Convert tensors to numpy arrays and move to CPU if necessary
     if torch.is_tensor(original_images):
-        original_images = original_images.detach().cpu()
+        original_images = original_images.detach().cpu().float().numpy()
     if torch.is_tensor(generated_images):
-        generated_images = generated_images.detach().cpu()
+        generated_images = generated_images.detach().cpu().float().numpy()
 
     # Take only the specified number of images
     original_images = original_images[:num_images]
@@ -245,18 +245,20 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
 
     for i in range(num_images):
         # Original image
-        orig_img = original_images[i].permute(1, 2, 0).numpy()
+        orig_img = np.transpose(original_images[i], (1, 2, 0))
         orig_img = (orig_img + 1) / 2.0  # Denormalize from [-1, 1] to [0, 1]
         orig_img = np.clip(orig_img, 0, 1)  # Ensure values are in [0, 1]
+        orig_img = orig_img.astype(np.float32)  # Convert to float32
         axes[i, 0].imshow(orig_img)
         axes[i, 0].axis('off')
         if i == 0:
             axes[i, 0].set_title('Original')
 
         # Generated image
-        gen_img = generated_images[i].permute(1, 2, 0).numpy()
+        gen_img = np.transpose(generated_images[i], (1, 2, 0))
         gen_img = (gen_img + 1) / 2.0  # Denormalize from [-1, 1] to [0, 1]
         gen_img = np.clip(gen_img, 0, 1)  # Ensure values are in [0, 1]
+        gen_img = gen_img.astype(np.float32)  # Convert to float32
         
         # Check if image is all gray
         if np.std(gen_img) < 0.01:
@@ -280,21 +282,24 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
     details_dir = os.path.join(comparisons_dir, f'epoch_{epoch:04d}_details')
     os.makedirs(details_dir, exist_ok=True)
 
-    # Use torchvision's save_image for individual images
+    # Convert back to tensors for save_image
+    original_images_tensor = torch.from_numpy(original_images)
+    generated_images_tensor = torch.from_numpy(generated_images)
+
     for i in range(num_images):
         # Save original
         save_image(
-            original_images[i],
+            original_images_tensor[i],
             os.path.join(details_dir, f'original_{i+1}.png'),
             normalize=True,
-            range=(-1, 1)  # Specify the input range
+            range=(-1, 1)
         )
         # Save generated
         save_image(
-            generated_images[i],
+            generated_images_tensor[i],
             os.path.join(details_dir, f'generated_{i+1}.png'),
             normalize=True,
-            range=(-1, 1)  # Specify the input range
+            range=(-1, 1)
         )
 
 def find_best_checkpoint(output_dirs):
