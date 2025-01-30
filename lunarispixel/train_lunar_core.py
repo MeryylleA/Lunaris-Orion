@@ -231,17 +231,13 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
 
     # Convert tensors to numpy arrays and move to CPU if necessary
     if torch.is_tensor(original_images):
-        original_images = original_images.cpu().numpy()
+        original_images = original_images.detach().cpu()
     if torch.is_tensor(generated_images):
-        generated_images = generated_images.cpu().numpy()
+        generated_images = generated_images.detach().cpu()
 
     # Take only the specified number of images
     original_images = original_images[:num_images]
     generated_images = generated_images[:num_images]
-
-    # Ensure arrays are float32 and handle NaN/Inf values
-    original_images = np.nan_to_num(original_images.astype(np.float32), nan=0.0, posinf=1.0, neginf=-1.0)
-    generated_images = np.nan_to_num(generated_images.astype(np.float32), nan=0.0, posinf=1.0, neginf=-1.0)
 
     # Create a figure with a grid of image pairs
     fig, axes = plt.subplots(num_images, 2, figsize=(10, 2*num_images))
@@ -249,7 +245,7 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
 
     for i in range(num_images):
         # Original image
-        orig_img = np.transpose(original_images[i], (1, 2, 0))
+        orig_img = original_images[i].permute(1, 2, 0).numpy()
         orig_img = (orig_img + 1) / 2.0  # Denormalize from [-1, 1] to [0, 1]
         orig_img = np.clip(orig_img, 0, 1)  # Ensure values are in [0, 1]
         axes[i, 0].imshow(orig_img)
@@ -258,13 +254,14 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
             axes[i, 0].set_title('Original')
 
         # Generated image
-        gen_img = np.transpose(generated_images[i], (1, 2, 0))
+        gen_img = generated_images[i].permute(1, 2, 0).numpy()
         gen_img = (gen_img + 1) / 2.0  # Denormalize from [-1, 1] to [0, 1]
         gen_img = np.clip(gen_img, 0, 1)  # Ensure values are in [0, 1]
         
-        # Check if image is all black
-        if np.mean(gen_img) < 0.01:
-            print(f"Warning: Generated image {i} appears to be mostly black. Raw stats: mean={np.mean(gen_img):.4f}, std={np.std(gen_img):.4f}")
+        # Check if image is all gray
+        if np.std(gen_img) < 0.01:
+            logger = logging.getLogger("LunarCore")
+            logger.warning(f"Generated image {i} appears to be mostly gray. Stats: mean={np.mean(gen_img):.4f}, std={np.std(gen_img):.4f}")
         
         axes[i, 1].imshow(gen_img)
         axes[i, 1].axis('off')
@@ -283,21 +280,21 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
     details_dir = os.path.join(comparisons_dir, f'epoch_{epoch:04d}_details')
     os.makedirs(details_dir, exist_ok=True)
 
+    # Use torchvision's save_image for individual images
     for i in range(num_images):
         # Save original
-        orig_img = np.transpose(original_images[i], (1, 2, 0))
-        orig_img = ((orig_img + 1) / 2.0 * 255).astype(np.uint8)
-        orig_img = np.clip(orig_img, 0, 255)
-        Image.fromarray(orig_img).save(
-            os.path.join(details_dir, f'original_{i+1}.png')
+        save_image(
+            original_images[i],
+            os.path.join(details_dir, f'original_{i+1}.png'),
+            normalize=True,
+            range=(-1, 1)  # Specify the input range
         )
-
         # Save generated
-        gen_img = np.transpose(generated_images[i], (1, 2, 0))
-        gen_img = ((gen_img + 1) / 2.0 * 255).astype(np.uint8)
-        gen_img = np.clip(gen_img, 0, 255)
-        Image.fromarray(gen_img).save(
-            os.path.join(details_dir, f'generated_{i+1}.png')
+        save_image(
+            generated_images[i],
+            os.path.join(details_dir, f'generated_{i+1}.png'),
+            normalize=True,
+            range=(-1, 1)  # Specify the input range
         )
 
 def find_best_checkpoint(output_dirs):
@@ -576,14 +573,16 @@ def save_training_artifacts(epoch, images, recon_images, metrics, output_dirs):
         # Save original
         save_image(
             images[i],
-            os.path.join(samples_dir, f"original_{i+1}.png"),
-            normalize=True
+            os.path.join(samples_dir, f'original_{i+1}.png'),
+            normalize=True,
+            range=(-1, 1)  # Specify the input range
         )
         # Save reconstruction
         save_image(
             recon_images[i],
-            os.path.join(samples_dir, f"reconstruction_{i+1}.png"),
-            normalize=True
+            os.path.join(samples_dir, f'reconstruction_{i+1}.png'),
+            normalize=True,
+            range=(-1, 1)  # Specify the input range
         )
     
     # Save metrics
