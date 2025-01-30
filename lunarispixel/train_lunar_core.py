@@ -282,24 +282,26 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dir, n
     details_dir = os.path.join(comparisons_dir, f'epoch_{epoch:04d}_details')
     os.makedirs(details_dir, exist_ok=True)
 
-    # Convert back to tensors for save_image
+    # Convert back to tensors for save_image and normalize to [0, 1] range
     original_images_tensor = torch.from_numpy(original_images)
     generated_images_tensor = torch.from_numpy(generated_images)
+
+    # Normalize tensors from [-1, 1] to [0, 1] before saving
+    original_images_tensor = (original_images_tensor + 1) / 2
+    generated_images_tensor = (generated_images_tensor + 1) / 2
 
     for i in range(num_images):
         # Save original
         save_image(
             original_images_tensor[i],
             os.path.join(details_dir, f'original_{i+1}.png'),
-            normalize=True,
-            range=(-1, 1)
+            normalize=False  # Already normalized to [0, 1]
         )
         # Save generated
         save_image(
             generated_images_tensor[i],
             os.path.join(details_dir, f'generated_{i+1}.png'),
-            normalize=True,
-            range=(-1, 1)
+            normalize=False  # Already normalized to [0, 1]
         )
 
 def find_best_checkpoint(output_dirs):
@@ -574,20 +576,22 @@ def save_training_artifacts(epoch, images, recon_images, metrics, output_dirs):
     )
     os.makedirs(samples_dir, exist_ok=True)
     
+    # Normalize tensors from [-1, 1] to [0, 1] before saving
+    images = (images + 1) / 2
+    recon_images = (recon_images + 1) / 2
+    
     for i in range(min(8, len(images))):
         # Save original
         save_image(
             images[i],
             os.path.join(samples_dir, f'original_{i+1}.png'),
-            normalize=True,
-            range=(-1, 1)  # Specify the input range
+            normalize=False  # Already normalized
         )
         # Save reconstruction
         save_image(
             recon_images[i],
             os.path.join(samples_dir, f'reconstruction_{i+1}.png'),
-            normalize=True,
-            range=(-1, 1)  # Specify the input range
+            normalize=False  # Already normalized
         )
     
     # Save metrics
@@ -1000,49 +1004,55 @@ def main():
                             recon_images, mean, logvar = model(images)
                             recon_loss = loss_fn(recon_images, images)
                             kl_divergence = -0.5 * torch.mean(1 + logvar - mean.pow(2) - logvar.exp())
-                            kl_weight_current = min(1.0, epoch / 10) * kl_weight
+                            # Add KL annealing
+                            kl_weight_current = min(1.0, epoch / 50) * kl_weight  # Slower annealing
                             loss = recon_loss + kl_weight_current * kl_divergence
 
                         if torch.isnan(loss) or torch.isinf(loss):
-                            logger.warning("Batch %d/%d | NaN/Inf loss detected", i+1, len(train_dataloader))
-                            logger.warning("         | Recon Loss: %.4f", recon_loss.item())
-                            logger.warning("         | KL Div: %.4f", kl_divergence.item())
+                            logger.warning(f"Batch {i+1}/{len(train_dataloader)} | NaN/Inf loss detected")
+                            logger.warning(f"         | Recon Loss: {recon_loss.item():.4f}")
+                            logger.warning(f"         | KL Div: {kl_divergence.item():.4f}")
                             continue
 
                         scaler.scale(loss).backward()
+                        # Unscale before gradient clipping
                         scaler.unscale_(optimizer)
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                        # Stronger gradient clipping
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
                         scaler.step(optimizer)
                         scaler.update()
                     else:
                         recon_images, mean, logvar = model(images)
                         recon_loss = loss_fn(recon_images, images)
                         kl_divergence = -0.5 * torch.mean(1 + logvar - mean.pow(2) - logvar.exp())
-                        kl_weight_current = min(1.0, epoch / 10) * kl_weight
+                        # Add KL annealing
+                        kl_weight_current = min(1.0, epoch / 50) * kl_weight  # Slower annealing
                         loss = recon_loss + kl_weight_current * kl_divergence
 
                         if torch.isnan(loss) or torch.isinf(loss):
-                            logger.warning("Batch %d/%d | NaN/Inf loss detected", i+1, len(train_dataloader))
-                            logger.warning("         | Recon Loss: %.4f", recon_loss.item())
-                            logger.warning("         | KL Div: %.4f", kl_divergence.item())
+                            logger.warning(f"Batch {i+1}/{len(train_dataloader)} | NaN/Inf loss detected")
+                            logger.warning(f"         | Recon Loss: {recon_loss.item():.4f}")
+                            logger.warning(f"         | KL Div: {kl_divergence.item():.4f}")
                             continue
 
                         loss.backward()
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                        # Stronger gradient clipping
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
                         optimizer.step()
 
                     train_loss += loss.item()
 
                     if (i + 1) % 10 == 0:
                         current_lr = optimizer.param_groups[0]['lr']
-                        logger.info("Batch %d/%d | Metrics:", i+1, len(train_dataloader))
-                        logger.info("         | Loss: %.4f", loss.item())
-                        logger.info("         | Recon Loss: %.4f", recon_loss.item())
-                        logger.info("         | KL Div: %.4f", kl_divergence.item())
-                        logger.info("         | Learning Rate: %.6f", current_lr)
+                        logger.info(f"Batch {i+1}/{len(train_dataloader)} | Metrics:")
+                        logger.info(f"         | Loss: {loss.item():.4f}")
+                        logger.info(f"         | Recon Loss: {recon_loss.item():.4f}")
+                        logger.info(f"         | KL Div: {kl_divergence.item():.4f}")
+                        logger.info(f"         | KL Weight: {kl_weight_current:.6f}")
+                        logger.info(f"         | Learning Rate: {current_lr:.6f}")
 
                 except RuntimeError as e:
-                    logger.error("Batch %d/%d | Runtime Error: %s", i+1, len(train_dataloader), str(e))
+                    logger.error(f"Batch {i+1}/{len(train_dataloader)} | Runtime Error: {str(e)}")
                     continue
 
             avg_train_loss = train_loss / len(train_dataloader)
