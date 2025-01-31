@@ -1,6 +1,6 @@
 # LunarCore Architecture Documentation
 
-This document provides a detailed explanation of the LunarCore VAE architecture, its components, and guidelines for modifications and improvements.
+This document provides a detailed explanation of the LunarCore VAE architecture, its components, and guidelines for modifications and improvements. The architecture has been updated to support 128×128 resolution pixel art images.
 
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
@@ -12,25 +12,28 @@ This document provides a detailed explanation of the LunarCore VAE architecture,
 
 ## Architecture Overview
 
-The LunarCore VAE is designed specifically for pixel art processing, with several key architectural decisions:
+The LunarCore VAE is designed specifically for high-resolution pixel art processing (128×128), with several key architectural decisions:
 
 ### Design Philosophy
-- Preserve pixel-perfect details through skip connections
-- Capture global patterns with self-attention
-- Maintain color consistency with proper normalization
+- Preserve pixel-perfect details through multi-scale skip connections
+- Capture global patterns with strategically placed self-attention
+- Maintain color consistency and fine details with proper normalization
 - Balance reconstruction quality with latent space regularization
+- Support high-resolution (128×128) pixel art while maintaining computational efficiency
 
 ### Core Components
 ```
-Input (16×16×3)
+Input (128×128×3)
     ↓
 Encoder (Progressive downsampling + Self-attention)
+    128×128 → 64×64 → 32×32 → 16×16 → 8×8
     ↓
 Latent Space (128-dim)
     ↓
-Decoder (Progressive upsampling + Self-attention)
+Decoder (Progressive upsampling + Skip connections)
+    8×8 → 16×16 → 32×32 → 64×64 → 128×128
     ↓
-Output (16×16×3)
+Output (128×128×3)
 ```
 
 ## Component Details
@@ -39,46 +42,68 @@ Output (16×16×3)
 
 #### Input Processing
 ```python
-# Initial convolution
+# Initial convolution (maintains 128×128 resolution)
 Conv2D(in_channels=3, out_channels=64, kernel_size=3, padding=1)
 BatchNorm2D(64)
 LeakyReLU(0.2)
+ResBlock(64)  # Preserve initial details
 ```
 
 #### Downsampling Blocks
-Each block consists of:
+The encoder uses four downsampling blocks:
+
+**Block 1: 128×128 → 64×64**
 ```python
 # Downsample
-Conv2D(in_channels=C_in, out_channels=C_out, kernel_size=4, stride=2, padding=1)
-BatchNorm2D(C_out)
+Conv2D(64, 128, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(128)
 LeakyReLU(0.2)
-
-# ResBlock
-ResBlock(
-    Conv2D(C_out, C_out, kernel_size=3, padding=1)
-    BatchNorm2D(C_out)
-    Dropout(0.1)
-    LeakyReLU(0.2)
-)
-
-# Self-Attention (at 8×8 and 4×4 resolutions)
-SelfAttention(
-    query_conv = Conv2D(C_out, C_out//8, kernel_size=1)
-    key_conv = Conv2D(C_out, C_out//8, kernel_size=1)
-    value_conv = Conv2D(C_out, C_out, kernel_size=1)
-)
+ResBlock(128)
+SelfAttention(128)  # Capture global patterns at 64×64
 ```
+
+**Block 2: 64×64 → 32×32**
+```python
+Conv2D(128, 256, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(256)
+LeakyReLU(0.2)
+ResBlock(256)
+SelfAttention(256)  # Capture global patterns at 32×32
+```
+
+**Block 3: 32×32 → 16×16**
+```python
+Conv2D(256, 512, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(512)
+LeakyReLU(0.2)
+ResBlock(512)
+```
+
+**Block 4: 16×16 → 8×8**
+```python
+Conv2D(512, 512, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(512)
+LeakyReLU(0.2)
+ResBlock(512)
+```
+
+#### Skip Connections
+Skip connections are stored at multiple resolutions:
+- Level 1: 128×128 (64 channels)
+- Level 2: 64×64 (128 channels)
+- Level 3: 32×32 (256 channels)
+- Level 4: 16×16 (512 channels)
 
 #### Latent Projection
 ```python
-Flatten()
-Linear(2048, 128)  # Mean
-Linear(2048, 128)  # LogVar
+Flatten(512 * 8 * 8)  # 32,768-dimensional vector
+Linear(32768, 128)    # Mean
+Linear(32768, 128)    # LogVar
 ```
 
 ### 2. Latent Space
 
-The latent space uses the reparametrization trick:
+The latent space remains 128-dimensional and uses the reparametrization trick:
 ```python
 def reparameterize(mean, logvar):
     std = torch.exp(0.5 * logvar)
@@ -88,141 +113,148 @@ def reparameterize(mean, logvar):
 
 ### 3. Decoder
 
-#### Latent Processing
+#### Initial Projection
 ```python
-Linear(128, 2048)
-Reshape(512, 2, 2)
+Linear(128, 512 * 8 * 8)
+Reshape(-1, 512, 8, 8)
 ```
 
 #### Upsampling Blocks
-Each block consists of:
+
+**Block 1: 8×8 → 16×16**
 ```python
-# Upsample
-ConvTranspose2D(C_in, C_out, kernel_size=4, stride=2, padding=1)
-BatchNorm2D(C_out)
+ConvTranspose2D(512, 512, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(512)
 LeakyReLU(0.2)
+# Concatenate with skip connection (512 + 512 = 1024 channels)
+ResBlock(1024)
+Conv2D(1024, 512, kernel_size=1)  # Channel reduction
+```
 
-# ResBlock
-ResBlock(
-    Conv2D(C_out*2, C_out*2, kernel_size=3, padding=1)  # *2 due to skip connection
-    BatchNorm2D(C_out*2)
-    Dropout(0.2)
-    LeakyReLU(0.2)
-)
+**Block 2: 16×16 → 32×32**
+```python
+ConvTranspose2D(512, 256, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(256)
+LeakyReLU(0.2)
+# Concatenate with skip connection (256 + 256 = 512 channels)
+ResBlock(512)
+Conv2D(512, 256, kernel_size=1)  # Channel reduction
+```
 
-# Self-Attention (at 4×4 and 8×8 resolutions)
-SelfAttention(
-    query_conv = Conv2D(C_out, C_out//8, kernel_size=1)
-    key_conv = Conv2D(C_out, C_out//8, kernel_size=1)
-    value_conv = Conv2D(C_out, C_out, kernel_size=1)
-)
+**Block 3: 32×32 → 64×64**
+```python
+ConvTranspose2D(256, 128, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(128)
+LeakyReLU(0.2)
+# Concatenate with skip connection (128 + 128 = 256 channels)
+ResBlock(256)
+Conv2D(256, 128, kernel_size=1)  # Channel reduction
+```
+
+**Block 4: 64×64 → 128×128**
+```python
+ConvTranspose2D(128, 64, kernel_size=4, stride=2, padding=1)
+BatchNorm2D(64)
+LeakyReLU(0.2)
+# Concatenate with skip connection (64 + 64 = 128 channels)
+ResBlock(128)
+Conv2D(128, 64, kernel_size=1)  # Channel reduction
 ```
 
 #### Output Processing
 ```python
 Conv2D(64, 3, kernel_size=3, padding=1)
-Tanh()
+Tanh()  # Normalize to [-1, 1]
 ```
 
 ## Training Process
 
 ### Loss Function
-The model uses a combination of reconstruction loss and KL divergence:
+The model uses a weighted combination of reconstruction loss and KL divergence:
 ```python
-reconstruction_loss = MSE(output, target)
+reconstruction_loss = MSE(output, target)  # For 128×128 images
 kl_loss = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp())
 total_loss = reconstruction_loss + kl_weight * kl_loss
+
+# KL weight annealing for 128×128 training
+kl_weight = min(1.0, current_epoch / 50) * base_kl_weight
 ```
 
 ### Optimization
-- Optimizer: AdamW with weight decay 1e-5
-- Learning rate: 0.001 with StepLR scheduler
-- Mixed precision training for efficiency
-- Gradient clipping to prevent exploding gradients
+- Optimizer: AdamW with weight decay 1e-4
+- Learning rate: 0.001 with warmup and cosine decay
+- Mixed precision training for efficient 128×128 processing
+- Gradient clipping at 0.5 to prevent instability
+- Batch size adjusted based on available GPU memory
 
 ## Modification Guidelines
 
-### Adding New Features
+### High-Resolution Specific Improvements
 
-1. **Increasing Model Capacity**
+1. **Memory Optimization**
 ```python
-# Example: Adding more channels
-self.conv1 = nn.Conv2d(3, 128, kernel_size=3, padding=1)  # 64 -> 128
+# Example: Gradient checkpointing for memory efficiency
+from torch.utils.checkpoint import checkpoint
+
+def forward(self, x):
+    x = checkpoint(self.block1, x)
+    x = checkpoint(self.block2, x)
 ```
 
-2. **Adding More Attention Layers**
+2. **Feature Preservation**
 ```python
-# Add attention after any conv layer
-x = self.conv(x)
-x = self.attention(x)  # New attention layer
-```
-
-3. **Modifying ResBlocks**
-```python
-# Example: Adding squeeze-and-excitation
-class ResBlockSE(nn.Module):
-    def __init__(self, channels):
-        super().__init__()
-        self.se = SqueezeExcitation(channels)
-        # ... rest of ResBlock implementation
+# Example: Adding residual connections in upsampling
+class UpsampleBlock(nn.Module):
+    def forward(self, x, skip):
+        up = self.upsample(x)
+        combined = torch.cat([up, skip], dim=1)
+        return self.process(combined) + up
 ```
 
 ### Architecture Improvements
 
-1. **Latent Space Modifications**
-- Increase dimensionality for more capacity
-- Add additional regularization
-- Implement hierarchical latent spaces
+1. **Enhanced Skip Connections**
+- Feature refinement before concatenation
+- Adaptive skip connection weighting
+- Multi-scale feature fusion
 
-2. **Skip Connection Variations**
-- Add feature transformation before skip connection
-- Implement dense skip connections
-- Add attention to skip connections
-
-3. **Loss Function Enhancements**
-- Add perceptual loss
-- Implement feature matching
-- Add adversarial loss
+2. **Advanced Attention Mechanisms**
+- Window attention for efficiency
+- Cross-resolution attention
+- Channel attention in skip connections
 
 ## Implementation Tips
 
-1. **Memory Optimization**
-- Use gradient checkpointing for large models
-- Implement efficient attention mechanisms
-- Optimize batch size based on available memory
+1. **128×128 Specific Optimizations**
+- Use torch.compile() for faster processing
+- Implement efficient memory management
+- Optimize data loading for large images
 
 2. **Training Stability**
-- Start with small kl_weight and increase gradually
-- Use learning rate warmup
-- Monitor gradient norms
-
-3. **Performance Improvements**
-- Use torch.compile() for faster training
-- Implement efficient data loading
-- Utilize GPU profiling tools
+- Progressive resolution increase during training
+- Careful learning rate scheduling
+- Monitor and adjust KL weight annealing
 
 ## Common Issues
 
-1. **Training Problems**
-- Posterior collapse: Increase kl_weight
-- Blurry outputs: Check reconstruction loss weight
-- Mode collapse: Adjust latent space regularization
+1. **High-Resolution Specific Problems**
+- Memory management for large batches
+- Balancing detail preservation with compression
+- Training stability at higher resolutions
 
-2. **Memory Issues**
-- OOM errors: Reduce batch size or model size
-- Slow training: Check data loading bottlenecks
-- GPU utilization: Monitor with nvidia-smi
-
-3. **Quality Issues**
-- Loss of details: Adjust skip connections
-- Color inconsistency: Check normalization
-- Artifacts: Adjust attention mechanisms
+2. **Quality Considerations**
+- Fine detail preservation at 128×128
+- Color consistency across scales
+- Artifact prevention in upsampling
 
 ## Future Improvements
 
 Potential areas for enhancement:
-1. Implement conditional generation
-2. Add style transfer capabilities
-3. Integrate with diffusion models
-4. Implement interactive editing features
-5. Add support for different resolutions 
+1. Support for even higher resolutions (256×256, 512×512)
+2. Conditional generation with text prompts
+3. Style-based generation and control
+4. Progressive growing training support
+5. Adaptive resolution handling
+6. Real-time inference optimization
+7. Enhanced detail preservation techniques
+8. Multi-scale discriminator integration 
