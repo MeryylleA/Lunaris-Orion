@@ -1,107 +1,95 @@
 # Lunaris-Orion: Advanced Pixel Art VAE Training System
 
-A sophisticated deep learning system for training Variational Autoencoders (VAE) specialized in pixel art generation and manipulation.
-
-![LunarCore Architecture](lunar_core_architecture.png)
+A sophisticated deep learning system for training Variational Autoencoders (VAE) specialized in pixel art generation and manipulation, now supporting 128×128 resolution with enhanced color fidelity.
 
 ## Features
 
-- **Advanced VAE Architecture**
-  - Custom-designed for 16x16 pixel art
-  - Self-attention mechanisms for improved detail preservation
-  - Residual connections for better gradient flow
+- **Enhanced VAE Architecture**
+  - Optimized for 128×128 pixel art
+  - Advanced color quantization system
+  - Improved edge preservation mechanisms
   - Configurable latent space dimension
-  - Progressive resolution changes through strided convolutions
-  - Skip connections for preserving spatial information
+  - Progressive resolution scaling
+  - Enhanced skip connections for detail preservation
 
 - **Robust Training System**
+  - Secure checkpoint management with exception handling
+  - Advanced logging system with detailed error tracking
   - Mixed precision training support
   - PyTorch 2.0+ optimizations with `torch.compile`
-  - Automatic batch size optimization
-  - Dynamic learning rate scheduling with warmup
-  - Early stopping with customizable patience
-  - Gradient clipping for stability
-  - Progressive KL annealing for better convergence
+  - Automatic memory management and CUDA optimization
+  - Dynamic learning rate scheduling with extended warmup
+  - Enhanced early stopping with configurable parameters
+  - Progressive color quantization during training
+  - Improved loss function for pixel art fidelity
 
 - **Professional Project Structure**
 ```
 output/
-├── logs/                    # Training logs with timestamps
+├── logs/
+│   ├── training/           # Detailed training logs with timestamps
+│   └── errors/            # Separate error logs with stack traces
 ├── checkpoints/
-│   ├── best/               # Best performing model checkpoints
-│   ├── periodic/           # Regular interval checkpoints
-│   └── interrupt/          # Checkpoints from interrupted training
+│   ├── best/              # Best performing model checkpoints
+│   ├── periodic/          # Regular interval checkpoints
+│   └── interrupt/         # Safe interrupt checkpoints
 ├── outputs/
-│   ├── samples/            # Generated samples by epoch
-│   ├── metrics/            # Training metrics and reports
-│   └── comparisons/        # Visual progress comparisons
-└── runs/                    # TensorBoard logs
+│   ├── samples/           # Generated samples by epoch
+│   ├── metrics/           # Detailed training metrics
+│   ├── progress/          # Visual progress tracking
+│   └── reports/           # Comprehensive training reports
+└── tensorboard/           # TensorBoard logs
 ```
 
-## Architecture Overview
+## New Features and Improvements
 
-The LunarCore VAE consists of three main components:
+### Enhanced Color Management
+- Discrete color quantization during training
+- Color palette preservation mechanisms
+- Improved edge detection and preservation
+- Advanced pixel-perfect reconstruction
 
-### 1. Encoder
-- Progressive downsampling from 16x16 to 2x2
-- Self-attention layers at 8x8 and 4x4 resolutions
-- ResNet blocks for feature extraction
-- Outputs mean (μ) and log-variance (σ) for the latent space
+### Robust Error Handling
+- Comprehensive exception logging with stack traces
+- Safe checkpoint saving and loading
+- Graceful training interruption handling
+- Automatic memory cleanup and optimization
 
-### 2. Latent Space
-- Configurable latent dimension (default: 128)
-- Reparameterization trick for backpropagation
-- Gaussian prior (N(0,1))
-- Progressive KL annealing for better convergence
+### Advanced Training Metrics
+- Color fidelity tracking
+- Edge preservation metrics
+- Pixel accuracy measurements
+- Detailed progress visualization
 
-### 3. Decoder
-- Progressive upsampling from 2x2 to 16x16
-- Matching self-attention layers
-- Skip connections from encoder
-- Final tanh activation for normalized output
-- Dropout layers for regularization
+## Training Requirements
 
-## Advanced Features
+### Hardware Requirements
 
-### Checkpoint Management
-- Automatic best model preservation
-- Periodic checkpoints at configurable intervals
-- Interrupt-safe checkpoint system
-- Smart cleanup of old checkpoints
-- Automatic best checkpoint detection and resume
+#### Recommended Specifications
+- GPU: NVIDIA GPU with 8GB+ VRAM
+- RAM: 16GB+ system memory
+- Storage: 100GB+ free space for datasets and checkpoints
 
-### Advanced Logging System
-- Structured logging with timestamps
-- Detailed progress tracking
-- Error and warning monitoring
-- Training metrics visualization
-- Hardware resource monitoring
+#### Minimum Specifications
+- GPU: NVIDIA GPU with 4GB VRAM
+- RAM: 8GB system memory
+- Storage: 50GB free space
 
-### Training Reports
-- Comprehensive per-epoch metrics
-- Hardware utilization statistics
-- Training configuration tracking
-- Performance metrics (MAE, PSNR)
-- JSON-formatted for easy analysis
-
-### Training Artifacts
-- Progress visualization grids
-- High-quality sample generation
-- Detailed metric tracking
-- Training progress comparisons
-
-## Requirements
+### Software Requirements
 
 - Python 3.8+
 - PyTorch 2.0+
-- CUDA-capable GPU (recommended)
+- CUDA 11.7+ (for GPU support)
 - Additional dependencies:
-  - torchvision >= 0.17.0
-  - numpy >= 1.24.0
-  - tensorboard >= 2.14.0
-  - tqdm >= 4.65.0
-  - pillow >= 10.0.0
-  - psutil >= 5.9.0
+  ```
+  torch>=2.0.0
+  torchvision>=0.15.0
+  numpy>=1.24.0
+  tensorboard>=2.14.0
+  tqdm>=4.65.0
+  pillow>=10.0.0
+  psutil>=5.9.0
+  ```
 
 ## Installation
 
@@ -124,127 +112,129 @@ source .venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 ```
 
-## Usage
+## Training Guide
 
-### Hardware-Specific Configurations
+### Data Preparation
 
-#### High-End GPU (e.g., NVIDIA L40S, A100)
-```bash
-python lunarispixel/train_lunar_core.py \
-    --data_dir /path/to/images \
-    --output_dir /path/to/output \
-    --batch_size 1024 \
-    --epochs 500 \
-    --learning_rate 0.001 \
-    --latent_dim 256 \
-    --compile \
-    --mixed_precision \
-    --save_every 5
+1. Prepare your dataset:
+   - Images should be 128×128 pixels
+   - Save sprites as .npy file
+   - Create corresponding labels.csv
+   - Place in your data directory
+
+2. Directory structure:
+```
+data/
+├── sprites.npy    # Shape: (N, 128, 128, 3)
+└── labels.csv     # Corresponding labels
 ```
 
-#### Mid-Range GPU (e.g., RTX 3080, 4080)
+### Training Configurations
+
+#### High-End GPU (16GB+ VRAM)
 ```bash
 python lunarispixel/train_lunar_core.py \
-    --data_dir /path/to/images \
-    --output_dir /path/to/output \
-    --batch_size 512 \
-    --epochs 300 \
-    --learning_rate 0.001 \
+    --data_dir data \
+    --batch_size 32 \
+    --epochs 100 \
+    --learning_rate 0.0003 \
     --latent_dim 128 \
+    --kl_weight 0.00001 \
+    --patience 20 \
+    --min_delta 0.001 \
+    --compile \
     --mixed_precision
 ```
 
-#### Entry-Level GPU (e.g., RTX 3060, 2060)
+#### Mid-Range GPU (8GB VRAM)
 ```bash
 python lunarispixel/train_lunar_core.py \
-    --data_dir /path/to/images \
-    --output_dir /path/to/output \
-    --batch_size 256 \
-    --epochs 200 \
-    --learning_rate 0.001 \
-    --latent_dim 64
+    --data_dir data \
+    --batch_size 16 \
+    --epochs 100 \
+    --learning_rate 0.0003 \
+    --latent_dim 128 \
+    --kl_weight 0.00001 \
+    --patience 20 \
+    --min_delta 0.001 \
+    --mixed_precision
 ```
 
-#### CPU-Only (with FP16 support)
+#### Entry-Level GPU (4GB VRAM)
 ```bash
 python lunarispixel/train_lunar_core.py \
-    --data_dir /path/to/images \
-    --output_dir /path/to/output \
-    --batch_size 128 \
+    --data_dir data \
+    --batch_size 8 \
     --epochs 100 \
-    --learning_rate 0.0005 \
-    --latent_dim 32
+    --learning_rate 0.0003 \
+    --latent_dim 64 \
+    --kl_weight 0.00001 \
+    --patience 20 \
+    --min_delta 0.001
 ```
 
 ### Key Parameters
 
 | Parameter | Description | Default | Notes |
 |-----------|-------------|---------|-------|
-| epochs | Number of training epochs | 300 | Adjust based on dataset size |
-| batch_size | Batch size | 512 | Hardware dependent |
-| learning_rate | Initial learning rate | 0.001 | |
-| latent_dim | Dimension of latent space | 128 | Higher for more complex datasets |
-| kl_weight | Weight of KL divergence loss | 0.0005 | |
-| data_dir | Training data directory | "images" | |
-| output_dir | Output directory for checkpoints | "output" | |
-| save_every | Save checkpoint interval | 10 | |
-| lr_step_size | LR scheduler step size | 10 | |
-| lr_gamma | LR scheduler gamma | 0.8 | |
-| patience | Early stopping patience | 7 | |
-| min_delta | Minimum improvement for early stopping | 0.0001 | |
-| compile | Use torch.compile optimization | False | Recommended for modern GPUs |
-| mixed_precision | Enable mixed precision training | False | Recommended for modern GPUs |
+| batch_size | Batch size | 32 | Adjust based on VRAM |
+| epochs | Training epochs | 100 | Increase for better results |
+| learning_rate | Initial learning rate | 0.0003 | Optimized for stability |
+| latent_dim | Latent space dimension | 128 | Trade-off between detail and memory |
+| kl_weight | KL divergence weight | 0.00001 | Controls latent space regularization |
+| patience | Early stopping patience | 20 | More epochs before stopping |
+| min_delta | Min improvement threshold | 0.001 | Reduced sensitivity |
+| compile | Use torch.compile | False | For modern GPUs |
+| mixed_precision | Use mixed precision | False | Recommended for GPUs |
 
-## Training Monitoring
+### Training Monitoring
 
-### Real-time Monitoring
-- Training progress with tqdm
-- Batch-level metrics every 10 batches
-- Epoch summaries with comprehensive metrics
-- Hardware utilization statistics
+1. Real-time logs:
+   - Training progress with detailed metrics
+   - Exception logging with stack traces
+   - Hardware utilization monitoring
+   - Checkpoint saving status
 
-### TensorBoard Integration
+2. TensorBoard monitoring:
 ```bash
-tensorboard --logdir path/to/output/runs
+tensorboard --logdir path/to/output/tensorboard
 ```
 
-### Training Reports
-- Located in `output/outputs/metrics/`
-- Contains detailed per-epoch information
-- Hardware utilization history
-- Complete training configuration
+3. Visual progress:
+   - Check `outputs/progress/` for image comparisons
+   - Monitor `outputs/metrics/` for detailed metrics
+   - Review `logs/training/` for complete logs
 
-## Model Architecture Details
+### Best Practices
 
-The model uses several key components:
+1. **Memory Management**
+   - Start with smaller batch sizes
+   - Monitor GPU memory usage
+   - Enable mixed precision for larger models
 
-- **ResNet Blocks**: Each with Conv3×3, BatchNorm, and Dropout
-- **Self-Attention**: Q,K,V transformations for capturing global context
-- **Skip Connections**: Preserving spatial information across different scales
-- **Mixed Precision Training**: For efficient GPU utilization
-- **Training Stability Features**:
-  - Gradient value clipping at 1.0
-  - Adaptive learning rate with 5-epoch warmup
-  - Progressive KL annealing over first 10 epochs
-  - Weight decay (1e-4) for regularization
-  - Improved numerical stability with epsilon=1e-8
+2. **Training Stability**
+   - Use the provided warmup period
+   - Monitor the KL divergence
+   - Check color quantization effects
 
-## Results
+3. **Checkpointing**
+   - Regular checkpoints are saved automatically
+   - Interrupt training safely with Ctrl+C
+   - Best models are preserved separately
 
-The model generates high-quality 16x16 pixel art images while maintaining:
-- Sharp edges and pixel-perfect details
+4. **Error Handling**
+   - Check error logs for detailed traces
+   - Monitor validation metrics
+   - Use safe cleanup procedures
+
+## Results and Evaluation
+
+The model now generates high-quality 128×128 pixel art while maintaining:
+- Sharp pixel edges
 - Consistent color palettes
-- Global structure through attention mechanisms
+- Detailed feature preservation
 - Stable training progression
 - Controlled latent space distribution
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
 
 ## License
 
@@ -252,11 +242,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Citation
 
-If you use this code for your research, please cite:
-
 ```bibtex
 @software{lunaris_orion,
-  title = {Lunaris-Orion: Advanced Pixel Art VAE with Self-Attention},
+  title = {Lunaris-Orion: Advanced Pixel Art VAE with Enhanced Color Fidelity},
   year = {2025},
   author = {Moon Cloud Services},
   url = {https://github.com/MeryylleA/Lunaris-Orion}
@@ -266,5 +254,5 @@ If you use this code for your research, please cite:
 ## Acknowledgments
 
 - Thanks to the PyTorch team for their excellent framework
-- Inspired by various VAE architectures and self-attention mechanisms
+- Inspired by various VAE architectures and color quantization techniques
 - Special thanks to the pixel art community for dataset contributions
