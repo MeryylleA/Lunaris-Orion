@@ -114,22 +114,22 @@ def optimize_num_workers():
     return min(4, max(1, cpu_count - 1))  # Leave one core free for system
 
 def cleanup_cuda_memory():
-    """Limpa completamente o cache CUDA e libera toda memória."""
+    """Completely clears CUDA cache and frees all memory."""
     if torch.cuda.is_available():
         try:
-            # Limpa o cache CUDA
+            # Clear CUDA cache
             torch.cuda.empty_cache()
             
-            # Força sincronização de todas as streams CUDA
+            # Force synchronization of all CUDA streams
             torch.cuda.synchronize()
             
-            # Reseta o estado do allocator CUDA
+            # Reset CUDA allocator state
             torch.cuda.memory.empty_cache()
             
-            # Limpa qualquer memória em cache
-            torch.cuda.empty_cache()  # Chamada adicional para garantir
+            # Clear any cached memory
+            torch.cuda.empty_cache()  # Additional call to ensure cleanup
             
-            # Força o coletor de lixo do Python
+            # Force Python garbage collection
             gc.collect()
             
         except Exception as e:
@@ -137,17 +137,17 @@ def cleanup_cuda_memory():
             logger.warning(f"Error cleaning CUDA memory: {str(e)}")
 
 def cleanup_memory():
-    """Função melhorada para limpeza de memória."""
+    """Enhanced function for memory cleanup."""
     logger = logging.getLogger("LunarCore.memory")
     
     try:
-        # Limpa referências cíclicas
+        # Clear cyclic references
         gc.collect()
         
-        # Limpa cache CUDA se disponível
+        # Clear CUDA cache if available
         cleanup_cuda_memory()
         
-        # Limpa variáveis não utilizadas
+        # Clear unused variables
         for obj in gc.get_objects():
             try:
                 if torch.is_tensor(obj):
@@ -159,21 +159,21 @@ def cleanup_memory():
         logger.warning(f"Error during memory cleanup: {str(e)}")
 
 def reset_cuda_device():
-    """Reseta completamente o dispositivo CUDA."""
+    """Resets the entire CUDA device."""
     logger = logging.getLogger("LunarCore.cuda")
     
     if torch.cuda.is_available():
         try:
-            # Limpa toda a memória CUDA
+            # Clear all CUDA memory
             cleanup_cuda_memory()
             
-            # Reseta todos os dispositivos CUDA
+            # Reset all CUDA devices
             torch.cuda.reset_peak_memory_stats()
             torch.cuda.reset_accumulated_memory_stats()
             
-            # Força reinicialização do ambiente CUDA
+            # Force reinitialization of CUDA environment
             current_device = torch.cuda.current_device()
-            torch.cuda.empty_cache()  # Corrigido: chamada direta ao invés de através do device
+            torch.cuda.empty_cache()  # Corrected: direct call instead of through device
             
             logger.info(f"CUDA device reset successfully")
             logger.info(f"→ Current device: {torch.cuda.get_device_name(current_device)}")
@@ -211,7 +211,7 @@ class EarlyStopping:
                 self.save_checkpoint(val_loss, model, epoch, optimizer, scheduler, output_dirs, metrics)
                 self.counter = 0
         except Exception as e:
-            self.logger.error("Erro durante early stopping check", exc_info=True)
+            self.logger.error("Error during early stopping check", exc_info=True)
             raise
 
     def save_checkpoint(self, val_loss, model, epoch, optimizer, scheduler, output_dirs, metrics=None):
@@ -254,7 +254,7 @@ class EarlyStopping:
             self.val_loss_min = val_loss
             
         except Exception as e:
-            self.logger.error("Erro ao salvar checkpoint", exc_info=True)
+            self.logger.error("Error saving checkpoint", exc_info=True)
             raise
 
 # Dataset
@@ -280,11 +280,11 @@ class PixelArtDataset(Dataset):
             if len(self.sprites.shape) != 4:
                 raise ValueError(f"Expected 4D array (N,H,W,C), got shape {self.sprites.shape}")
             
-            # Normalização específica para pixel art
+            # Normalization specific to pixel art
             if self.sprites.dtype == np.uint8:
-                # Normaliza para [-1, 1] mantendo valores discretos
+                # Normalize to [-1, 1] keeping discrete values
                 self.sprites = (self.sprites.astype(np.float32) / 127.5) - 1.0
-                # Arredonda para manter valores discretos
+                # Round to keep discrete values
                 self.sprites = np.round(self.sprites * 32) / 32
             
             self.sprites = np.transpose(self.sprites, (0, 3, 1, 2))
@@ -348,14 +348,14 @@ class PixelArtDataset(Dataset):
 def calculate_metrics(recon_images, images):
     """Calculate additional metrics for model evaluation with pixel art focus."""
     with torch.no_grad():
-        # Mean Absolute Error (mais adequado para pixel art)
+        # Mean Absolute Error (more appropriate for pixel art)
         mae = torch.mean(torch.abs(recon_images - images)).item()
         
         # Peak Signal-to-Noise Ratio (PSNR)
         mse = torch.mean((recon_images - images) ** 2).item()
         psnr = 20 * np.log10(2.0) - 10 * np.log10(mse)
         
-        # Pixel Accuracy (específico para pixel art)
+        # Pixel Accuracy (specific for pixel art)
         pixel_accuracy = torch.mean((torch.abs(recon_images - images) < 0.1).float()).item()
         
         return {
@@ -386,7 +386,7 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dirs, 
     fig, axes = plt.subplots(num_images, 2, figsize=(20, 4*num_images), dpi=300)
     plt.subplots_adjust(wspace=0.1, hspace=0.2)
 
-    # Desabilitar interpolação para matplotlib
+    # Disable interpolation for matplotlib
     plt.rcParams['image.interpolation'] = 'nearest'
     plt.rcParams['image.resample'] = False
     plt.rcParams['image.composite_image'] = False
@@ -397,7 +397,7 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dirs, 
         orig_img = (orig_img + 1) / 2.0  # Denormalize from [-1, 1] to [0, 1]
         orig_img = np.clip(orig_img, 0, 1)  # Ensure values are in [0, 1]
         
-        # Forçar pixels nítidos
+        # Force sharp pixels
         axes[i, 0].imshow(orig_img, interpolation='nearest')
         axes[i, 0].set_aspect('equal')
         axes[i, 0].axis('off')
@@ -409,7 +409,7 @@ def save_comparison_grid(epoch, original_images, generated_images, output_dirs, 
         gen_img = (gen_img + 1) / 2.0  # Denormalize from [-1, 1] to [0, 1]
         gen_img = np.clip(gen_img, 0, 1)  # Ensure values are in [0, 1]
         
-        # Forçar pixels nítidos
+        # Force sharp pixels
         axes[i, 1].imshow(gen_img, interpolation='nearest')
         axes[i, 1].set_aspect('equal')
         axes[i, 1].axis('off')
@@ -561,25 +561,25 @@ def cleanup_old_files(output_dirs, keep_best=True, keep_last_n=5):
 
 def safe_save_checkpoint(model, optimizer, scheduler, epoch, val_loss, output_path, metrics=None, is_best=False):
     """
-    Função segura para salvar checkpoints com tratamento de exceções detalhado.
+    Safe function for saving checkpoints with detailed exception handling.
     
     Args:
-        model: Modelo PyTorch
-        optimizer: Otimizador
-        scheduler: Scheduler do learning rate
-        epoch: Época atual
-        val_loss: Loss de validação
-        output_path: Caminho para salvar o checkpoint
-        metrics: Dicionário com métricas adicionais (opcional)
-        is_best: Flag indicando se é o melhor modelo até agora
+        model: PyTorch model
+        optimizer: Optimizer
+        scheduler: Learning rate scheduler
+        epoch: Current epoch
+        val_loss: Validation loss
+        output_path: Path to save the checkpoint
+        metrics: Dictionary with additional metrics (optional)
+        is_best: Flag indicating if this is the best model so far
     """
     logger = logging.getLogger("LunarCore.checkpoint")
     
     try:
-        # Cria o diretório se não existir
+        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        # Prepara o checkpoint
+        # Prepare checkpoint
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
@@ -589,71 +589,71 @@ def safe_save_checkpoint(model, optimizer, scheduler, epoch, val_loss, output_pa
             "metrics": metrics or {}
         }
         
-        # Salva o checkpoint com tratamento de erro de I/O
+        # Save checkpoint with I/O error handling
         try:
             torch.save(checkpoint, output_path)
-            logger.info(f"Checkpoint salvo com sucesso em: {output_path}")
+            logger.info(f"Checkpoint saved successfully at: {output_path}")
             
             if is_best:
                 best_path = os.path.join(os.path.dirname(output_path), "best_model.pth")
                 torch.save(checkpoint, best_path)
-                logger.info(f"Melhor modelo atualizado em: {best_path}")
+                logger.info(f"Best model updated at: {best_path}")
                 
         except IOError as io_err:
-            logger.error(f"Erro de I/O ao salvar checkpoint: {str(io_err)}", exc_info=True)
+            logger.error(f"I/O error while saving checkpoint: {str(io_err)}", exc_info=True)
             raise
             
     except Exception as e:
-        logger.error(f"Erro ao preparar/salvar checkpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error preparing/saving checkpoint: {str(e)}", exc_info=True)
         raise
 
 def load_checkpoint(checkpoint_path, model, optimizer=None, scheduler=None):
     """
-    Carrega checkpoint com tratamento de exceções detalhado.
+    Load checkpoint with detailed exception handling.
     """
     logger = logging.getLogger("LunarCore.checkpoint")
     
     try:
         if not os.path.exists(checkpoint_path):
-            raise FileNotFoundError(f"Checkpoint não encontrado: {checkpoint_path}")
+            raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
             
         checkpoint = torch.load(checkpoint_path)
         
-        # Carrega estado do modelo
+        # Load model state
         try:
             model.load_state_dict(checkpoint['model_state_dict'])
-            logger.info(f"Estado do modelo carregado de: {checkpoint_path}")
+            logger.info(f"Model state loaded from: {checkpoint_path}")
         except Exception as model_err:
-            logger.error("Erro ao carregar estado do modelo", exc_info=True)
+            logger.error("Error loading model state", exc_info=True)
             raise
             
-        # Carrega estado do optimizer se fornecido
+        # Load optimizer state if provided
         if optimizer and 'optimizer_state_dict' in checkpoint:
             try:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-                logger.info("Estado do optimizer carregado")
+                logger.info("Optimizer state loaded")
             except Exception as opt_err:
-                logger.error("Erro ao carregar estado do optimizer", exc_info=True)
+                logger.error("Error loading optimizer state", exc_info=True)
                 raise
                 
-        # Carrega estado do scheduler se fornecido
+        # Load scheduler state if provided
         if scheduler and 'scheduler_state_dict' in checkpoint:
             try:
                 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-                logger.info("Estado do scheduler carregado")
+                logger.info("Scheduler state loaded")
             except Exception as sched_err:
-                logger.error("Erro ao carregar estado do scheduler", exc_info=True)
+                logger.error("Error loading scheduler state", exc_info=True)
                 raise
                 
         epoch = checkpoint.get('epoch', 0)
         val_loss = checkpoint.get('val_loss', float('inf'))
         metrics = checkpoint.get('metrics', {})
         
-        logger.info(f"Checkpoint carregado com sucesso - Época: {epoch}, Val Loss: {val_loss:.4f}")
+        logger.info(f"Checkpoint loaded successfully - Epoch: {epoch}, Val Loss: {val_loss:.4f}")
         return epoch, val_loss, metrics
         
     except Exception as e:
-        logger.error(f"Erro ao carregar checkpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error loading checkpoint: {str(e)}", exc_info=True)
         raise
 
 def setup_pytorch_optimizations():
@@ -874,51 +874,121 @@ def get_transforms():
 
 def quantize_colors(x, n_colors=32):
     """
-    Quantiza as cores da imagem para um número específico de níveis.
+    Quantizes image colors to a specific number of levels.
     Args:
-        x (torch.Tensor): Tensor de imagem normalizado entre -1 e 1
-        n_colors (int): Número de níveis de quantização por canal
+        x (torch.Tensor): Image tensor normalized between -1 and 1
+        n_colors (int): Number of quantization levels per channel
     Returns:
-        torch.Tensor: Tensor quantizado com valores discretos
+        torch.Tensor: Quantized tensor with discrete values
     """
-    # Primeiro normaliza para [0, 1]
+    # First normalize to [0, 1]
     x = (x + 1.0) / 2.0
-    # Quantiza para níveis discretos
+    # Quantize to discrete levels
     x = torch.round(x * (n_colors - 1)) / (n_colors - 1)
-    # Volta para [-1, 1]
+    # Back to [-1, 1]
     x = x * 2.0 - 1.0
     return x
 
 def setup_signal_handler(model, optimizer, scheduler, epoch, output_dirs):
     """
-    Configura o handler de sinal para interrupção segura do treinamento.
+    Sets up signal handler for safe training interruption.
     """
     logger = logging.getLogger("LunarCore.signal_handler")
     
     def signal_handler(sig, frame):
-        logger.info("Interrupção detectada. Salvando checkpoint final...")
+        logger.info("Interruption detected. Saving final checkpoint...")
         try:
-            # Salva checkpoint de interrupção
+            # Save interrupt checkpoint
             interrupt_path = os.path.join(output_dirs["checkpoints.interrupt"], f"interrupt_checkpoint_epoch_{epoch}.pth")
             safe_save_checkpoint(
                 model=model,
                 optimizer=optimizer,
                 scheduler=scheduler,
                 epoch=epoch,
-                val_loss=float('inf'),  # Não temos val_loss no momento da interrupção
+                val_loss=float('inf'),  # No val_loss at interruption time
                 output_path=interrupt_path,
                 metrics=None
             )
-            logger.info("Checkpoint de interrupção salvo com sucesso")
+            logger.info("Interrupt checkpoint saved successfully")
             
         except Exception as e:
-            logger.error("Erro ao salvar checkpoint de interrupção", exc_info=True)
+            logger.error("Error saving interrupt checkpoint", exc_info=True)
             
         finally:
             sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
-    logger.info("Handler de sinal configurado para salvamento seguro de checkpoints")
+    logger.info("Signal handler configured for safe checkpoint saving")
+
+def count_parameters(model):
+    """
+    Count and display detailed model parameters.
+    """
+    logger = logging.getLogger("LunarCore.model")
+    
+    # Total parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    # Parameters per layer
+    logger.info("\n" + "="*50)
+    logger.info("MODEL ARCHITECTURE")
+    logger.info("="*50)
+    
+    logger.info("\nParameters per component:")
+    logger.info("-"*50)
+    
+    # Encoder
+    encoder_params = sum(p.numel() for p in model.encoder.parameters() if p.requires_grad)
+    logger.info(f"Encoder: {encoder_params:,} parameters")
+    
+    # Decoder
+    decoder_params = sum(p.numel() for p in model.decoder.parameters() if p.requires_grad)
+    logger.info(f"Decoder: {decoder_params:,} parameters")
+    
+    # Encoder Details
+    logger.info("\nEncoder Details:")
+    logger.info("-"*30)
+    encoder_layers = {
+        'Initial Layer (128x128)': ['conv_initial', 'bn_initial', 'res_initial'],
+        'Down Block1 (64x64)': ['down1', 'bn1', 'res1', 'attn1'],
+        'Down Block2 (32x32)': ['down2', 'bn2', 'res2', 'attn2'],
+        'Down Block3 (16x16)': ['down3', 'bn3', 'res3'],
+        'Down Block4 (8x8)': ['down4', 'bn4', 'res4'],
+        'Latent Projection': ['fc_mean', 'fc_logvar']
+    }
+    
+    for block_name, layers in encoder_layers.items():
+        block_params = sum(sum(p.numel() for p in getattr(model.encoder, layer).parameters() if p.requires_grad) 
+                         for layer in layers if hasattr(model.encoder, layer))
+    logger.info(f"{block_name}: {block_params:,} parameters")
+    
+    # Decoder Details
+    logger.info("\nDecoder Details:")
+    logger.info("-"*30)
+    decoder_layers = {
+        'Initial Projection': ['fc', 'unflatten'],
+        'Up Block1 (8x8 → 16x16)': ['up1', 'bn1', 'res_up1', 'reduce1'],
+        'Up Block2 (16x16 → 32x32)': ['up2', 'bn2', 'res_up2', 'reduce2'],
+        'Up Block3 (32x32 → 64x64)': ['up3', 'bn3', 'res_up3', 'reduce3'],
+        'Up Block4 (64x64 → 128x128)': ['up4', 'bn4', 'res_up4', 'reduce4'],
+        'Final Layer': ['conv_out']
+    }
+    
+    for block_name, layers in decoder_layers.items():
+        block_params = sum(sum(p.numel() for p in getattr(model.decoder, layer).parameters() if p.requires_grad) 
+                         for layer in layers if hasattr(model.decoder, layer))
+    logger.info(f"{block_name}: {block_params:,} parameters")
+    
+    # Summary
+    logger.info("\nFINAL SUMMARY")
+    logger.info("-"*50)
+    logger.info(f"Total Parameters: {total_params:,}")
+    logger.info(f"Trainable Parameters: {trainable_params:,}")
+    logger.info(f"Non-Trainable Parameters: {total_params - trainable_params:,}")
+    logger.info("="*50 + "\n")
+    
+    return trainable_params
 
 def main():
     # Add signal handler for graceful interruption
@@ -1012,13 +1082,13 @@ def main():
     parser.add_argument(
         "--patience",
         type=int,
-        default=20,  # Aumentado de 7 para 20
+        default=20,  # Increased from 7 to 20
         help="Number of epochs to wait for improvement before early stopping"
     )
     parser.add_argument(
         "--min_delta",
         type=float,
-        default=0.001,  # Aumentado para ser menos sensível
+        default=0.001,  # Increased to be less sensitive
         help="Minimum change in validation loss to qualify as an improvement"
     )
     parser.add_argument(
@@ -1096,22 +1166,22 @@ def main():
         save_every = args.save_every
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Loss function específica para pixel art
+        # Loss function specific to pixel art
         def pixel_art_loss(recon_x, x):
-            # Perda MSE por canal de cor separadamente
+            # MSE loss per color channel separately
             mse_r = torch.mean((recon_x[:, 0, :, :] - x[:, 0, :, :]) ** 2)
             mse_g = torch.mean((recon_x[:, 1, :, :] - x[:, 1, :, :]) ** 2)
             mse_b = torch.mean((recon_x[:, 2, :, :] - x[:, 2, :, :]) ** 2)
             mse = 0.7 * (mse_r + mse_g + mse_b) / 3.0
             
-            # Perda de cores (penaliza diferenças na paleta de cores)
+            # Color loss (penalizes differences in color palette)
             color_loss = 0.3 * (
                 torch.mean(torch.abs(torch.mean(recon_x[:, 0, :, :], dim=(1,2)) - torch.mean(x[:, 0, :, :], dim=(1,2)))) +
                 torch.mean(torch.abs(torch.mean(recon_x[:, 1, :, :], dim=(1,2)) - torch.mean(x[:, 1, :, :], dim=(1,2)))) +
                 torch.mean(torch.abs(torch.mean(recon_x[:, 2, :, :], dim=(1,2)) - torch.mean(x[:, 2, :, :], dim=(1,2))))
             )
             
-            # Perda de bordas (mantém pixels nítidos)
+            # Edge loss (keeps pixels sharp)
             edge_loss = 0.1 * (
                 torch.mean(torch.abs(
                     recon_x[:, :, 1:, :] - recon_x[:, :, :-1, :] -
@@ -1123,20 +1193,20 @@ def main():
                 ))
             )
             
-            # Perda de quantização de cores (força valores discretos)
-            n_colors = 32  # Número de níveis de cor
-            # Discretização mais forte para cores
+            # Color quantization loss (forces discrete values)
+            n_colors = 32  # Number of color levels
+            # Stronger discretization for colors
             discreteness_loss = 0.2 * torch.mean(
                 torch.abs(torch.round(recon_x * 8) / 8 - recon_x)
             )
             
             return mse + color_loss + edge_loss + discreteness_loss
 
-        # Substitui a loss function padrão
+        # Substitute the default loss function
         loss_fn = pixel_art_loss
 
         # Remove all transformations - pixel art should not be transformed
-        transform = None  # Removendo todas as transformações para preservar a qualidade do pixel art
+        transform = None  # Removing all transformations to preserve pixel art quality
 
         # Load dataset from .npy and .csv files
         try:
@@ -1218,10 +1288,10 @@ def main():
         # Model and optimizer
         model = LunarCoreVAE(latent_dim=latent_dim).to(device)
         
-        # Apply torch.compile if requested
-        if args.compile:
-            model = setup_model_compilation(model)
-
+        # Add parameter counting here
+        logger.info("\n[MODEL ARCHITECTURE]")
+        num_params = count_parameters(model)
+        
         # Initialize weights
         def weights_init(m):
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
@@ -1230,21 +1300,21 @@ def main():
                     nn.init.constant_(m.bias, 0)
         model.apply(weights_init)
 
-        # Optimizer com weight decay reduzido
+        # Optimizer with reduced weight decay
         optimizer = optim.AdamW(
             model.parameters(),
-            lr=0.0003,  # Learning rate menor
-            weight_decay=1e-7,  # Weight decay menor
+            lr=0.0003,  # Smaller learning rate
+            weight_decay=1e-7,  # Smaller weight decay
             eps=1e-8,
             betas=(0.9, 0.999)
         )
 
-        # Scheduler com warmup mais longo
+        # Scheduler with longer warmup
         def warmup_lambda(epoch):
             warmup_epochs = 10
             if epoch < warmup_epochs:
                 return float(epoch + 1) / warmup_epochs
-            return 0.95 ** ((epoch - warmup_epochs) // 5)  # Decay mais suave
+            return 0.95 ** ((epoch - warmup_epochs) // 5)  # Slower decay
         
         scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
@@ -1312,12 +1382,12 @@ def main():
                     if args.mixed_precision:
                         with torch.amp.autocast('cuda'):
                             recon_images, mean, logvar = model(images)
-                            # Aplica quantização de cores
+                            # Apply color quantization
                             recon_images = quantize_colors(recon_images, levels=8)
                             recon_loss = loss_fn(recon_images, images)
                             kl_divergence = -0.5 * torch.mean(1 + logvar - mean.pow(2) - logvar.exp())
-                            # Annealing mais lento do KL weight
-                            kl_weight_current = min(1.0, epoch / 100) * kl_weight  # Annealing mais lento
+                            # Slower KL weight annealing
+                            kl_weight_current = min(1.0, epoch / 100) * kl_weight  # Slower annealing
                             loss = recon_loss + kl_weight_current * kl_divergence
 
                         if torch.isnan(loss) or torch.isinf(loss):
@@ -1335,12 +1405,12 @@ def main():
                         scaler.update()
                     else:
                         recon_images, mean, logvar = model(images)
-                        # Aplica quantização de cores
+                        # Apply color quantization
                         recon_images = quantize_colors(recon_images, levels=8)
                         recon_loss = loss_fn(recon_images, images)
                         kl_divergence = -0.5 * torch.mean(1 + logvar - mean.pow(2) - logvar.exp())
-                        # Annealing mais lento do KL weight
-                        kl_weight_current = min(1.0, epoch / 100) * kl_weight  # Annealing mais lento
+                        # Slower KL weight annealing
+                        kl_weight_current = min(1.0, epoch / 100) * kl_weight  # Slower annealing
                         loss = recon_loss + kl_weight_current * kl_divergence
 
                         if torch.isnan(loss) or torch.isinf(loss):
@@ -1377,11 +1447,11 @@ def main():
             val_loss = 0.0
             val_recon_loss = 0.0
             val_kl_loss = 0.0
-            # Inicializa todas as métricas necessárias
+            # Initialize all necessary metrics
             val_metrics = {
                 "mae": 0.0,
                 "psnr": 0.0,
-                "pixel_accuracy": 0.0  # Adicionando a métrica que faltava
+                "pixel_accuracy": 0.0  # Adding the missing metric
             }
             
             with torch.no_grad():
@@ -1390,7 +1460,7 @@ def main():
 
                     with torch.amp.autocast('cuda'):
                         recon_images, mean, logvar = model(images)
-                        # Aplica quantização de cores na validação também
+                        # Apply color quantization in validation as well
                         recon_images = quantize_colors(recon_images, levels=8)
                         recon_loss = loss_fn(recon_images, images)
                         kl_divergence = -0.5 * torch.sum(1 + logvar - mean.pow(2) - logvar.exp())
@@ -1449,7 +1519,7 @@ def main():
                 break
             
             # Move scheduler step to after validation but before checkpoint saving
-            scheduler.step()  # Atualiza o learning rate para o próximo epoch
+            scheduler.step()  # Update learning rate for next epoch
             current_lr = optimizer.param_groups[0]['lr']
             logger.info(f"Learning rate for next epoch: {current_lr:.6f}")
 
