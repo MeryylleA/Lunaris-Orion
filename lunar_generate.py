@@ -10,7 +10,7 @@ and residual blocks are used to preserve fine details. The final layer uses
 a tanh activation to normalize the output to the range [-1, 1].
 
 Developer: Moon Cloud Services
-Date: 02/02/25
+Date: 02/03/25
 """
 
 import torch
