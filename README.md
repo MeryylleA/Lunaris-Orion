@@ -24,7 +24,7 @@ Lunaris-Orion is a sophisticated pixel art generation system that combines a Var
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/lunaris-orion.git
+git clone https://github.com/MeryylleA/Lunaris-Orion.git
 cd lunaris-orion
 
 # Create and activate virtual environment
@@ -139,10 +139,7 @@ lunaris-orion/
 Detailed documentation is available in the [docs](docs/) directory:
 - [Architecture Overview](docs/architecture.md)
 - [Model Details](docs/models.md)
-- [Training Guide](docs/training.md)
-- [Configuration Guide](docs/configuration.md)
-- [Hardware Optimization](docs/hardware.md)
-
+- 
 ## Training Outputs
 
 The system generates several types of outputs during training:
@@ -175,12 +172,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use this code in your research, please cite:
 
 ```bibtex
-@software{lunaris_orion2024,
-  author = {Your Name},
+@software{lunaris_orion,
+  author = {Moon Cloud Services},
   title = {Lunaris-Orion: Hybrid VAE-based Pixel Art Generation},
-  year = {2024},
-  publisher = {GitHub},
-  url = {https://github.com/yourusername/lunaris-orion}
+  year = {2025},
+  publisher = {Moon Cloud Services},
+  url = {https://github.com/MeryylleA/Lunaris-Orion}
 }
 ```
 
