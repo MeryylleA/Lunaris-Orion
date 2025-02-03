@@ -38,7 +38,7 @@ with 128×128 pixel art images and consists of the following components:
      • feature_maps: Optionally, the intermediate expert outputs (for visualization when not training)
 
 Author: Moon Cloud Services
-Date: 02/02/25
+Date: 02/03/25
 """
 
 import torch
