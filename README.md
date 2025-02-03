@@ -5,6 +5,7 @@ A hybrid VAE-based pixel art generation system with semantic understanding and q
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)](CHANGELOG.md)
 
 ## Overview
 
@@ -19,6 +20,17 @@ Lunaris-Orion is a sophisticated pixel art generation system that combines a Var
 - 🚀 Mixed precision training support
 - 📈 Comprehensive logging and visualization
 - 💾 Checkpoint management and training resumption
+- 🖥️ CPU training support (v0.0.4)
+- 📊 Dynamic memory optimization (v0.0.4)
+- 📉 Automatic batch size adjustment (v0.0.4)
+
+## What's New in v0.0.4
+
+- **CPU Support**: Train on systems without GPUs (slower but functional)
+- **Memory Optimization**: Dynamic batch size adjustment and memory tracking
+- **Better Monitoring**: Progress bars and detailed memory statistics
+- **Enhanced Stability**: Improved error handling and recovery
+- **Performance**: Reduced memory usage and better OOM handling
 
 ## Installation
 
@@ -56,7 +68,28 @@ pip install -r requirements.txt
        --num_workers 4
    ```
 
-3. **Resume training:**
+3. **Memory-efficient training (new in v0.0.4):**
+   ```bash
+   python train_hybrid.py \
+       --data_dir ./data \
+       --output_dir ./output \
+       --mixed_precision \
+       --memory_efficient \
+       --batch_size 32 \
+       --num_workers 4
+   ```
+
+4. **CPU training (new in v0.0.4):**
+   ```bash
+   python train_hybrid.py \
+       --data_dir ./data \
+       --output_dir ./output \
+       --force_cpu \
+       --batch_size 8 \
+       --num_workers 2
+   ```
+
+5. **Resume training:**
    ```bash
    python train_hybrid.py \
        --data_dir ./data \
@@ -64,7 +97,7 @@ pip install -r requirements.txt
        --resume_from ./output/checkpoints/best.pt
    ```
 
-## Hardware Recommendations
+## Hardware Configurations
 
 ### High-End GPUs (A100, H100, L40S)
 ```bash
@@ -72,6 +105,7 @@ python train_hybrid.py \
     --data_dir ./data \
     --output_dir ./output \
     --mixed_precision \
+    --memory_efficient \
     --batch_size 64 \
     --gradient_accumulation_steps 1 \
     --num_workers 8 \
@@ -89,6 +123,7 @@ python train_hybrid.py \
     --data_dir ./data \
     --output_dir ./output \
     --mixed_precision \
+    --memory_efficient \
     --batch_size 32 \
     --gradient_accumulation_steps 2 \
     --num_workers 4 \
@@ -106,6 +141,7 @@ python train_hybrid.py \
     --data_dir ./data \
     --output_dir ./output \
     --mixed_precision \
+    --memory_efficient \
     --batch_size 16 \
     --gradient_accumulation_steps 4 \
     --num_workers 2 \
@@ -117,6 +153,35 @@ python train_hybrid.py \
     --feature_dim 256
 ```
 
+### CPU Training (New in v0.0.4)
+```bash
+python train_hybrid.py \
+    --data_dir ./data \
+    --output_dir ./output \
+    --force_cpu \
+    --batch_size 8 \
+    --gradient_accumulation_steps 8 \
+    --num_workers 2 \
+    --chunk_size 32 \
+    --vae_lr 5e-5 \
+    --teacher_lr 2e-5 \
+    --latent_dim 256 \
+    --embedding_dim 128 \
+    --feature_dim 256
+```
+
+## Memory Management (New in v0.0.4)
+
+The new version includes several memory optimization features:
+
+- **Dynamic Batch Size**: Automatically adjusts batch size if OOM errors occur
+- **Memory Tracking**: Monitors and logs GPU memory usage
+- **Efficient Data Loading**: Optimized DataLoader settings
+- **Gradient Accumulation**: Better memory efficiency during training
+- **Automatic Cleanup**: Regular memory cleanup between batches
+
+Enable these features with the `--memory_efficient` flag.
+
 ## Project Structure
 
 ```
@@ -125,43 +190,12 @@ lunaris-orion/
 ├── docs/                  # Documentation
 ├── output/               # Training outputs
 │   ├── checkpoints/     # Model checkpoints
-│   ├── eval_samples/    # Generated samples
-│   └── tensorboard/     # Training logs
-├── lunar_generate.py     # VAE model
-├── lunar_evaluator.py    # Teacher model
-├── train_hybrid.py       # Training script
-├── requirements.txt      # Dependencies
-└── README.md            # This file
+│   ├── tensorboard/     # Training logs
+│   └── eval_samples/    # Generated samples
+├── models/              # Model definitions
+├── utils/               # Utility functions
+└── examples/            # Example scripts
 ```
-
-## Documentation
-
-Detailed documentation is available in the [docs](docs/) directory:
-- [Architecture Overview](docs/architecture.md)
-- [Model Details](docs/models.md)
-- 
-## Training Outputs
-
-The system generates several types of outputs during training:
-
-1. **Checkpoints** (`output/checkpoints/`):
-   - `latest.pt`: Most recent training state
-   - `best.pt`: Best performing model
-
-2. **Evaluation Samples** (`output/eval_samples/`):
-   - Side-by-side comparisons of original and generated images
-   - Quality and semantic scores
-   - Generated every N steps (configurable)
-
-3. **TensorBoard Logs** (`output/tensorboard/`):
-   - Loss curves
-   - Quality metrics
-   - Learning rates
-   - Memory usage
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 
@@ -184,4 +218,4 @@ If you use this code in your research, please cite:
 ## Acknowledgments
 
 - Thanks to the PyTorch team for their excellent framework
-- Special thanks to all contributors and users of the project 
+- Special thanks to all contributors and users of the project
