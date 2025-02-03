@@ -37,8 +37,8 @@ with 128×128 pixel art images and consists of the following components:
      • prompt_embedding: A prompt embedding vector (for potential conditioning)
      • feature_maps: Optionally, the intermediate expert outputs (for visualization when not training)
 
-Author: Your Name
-Date: YYYY-MM-DD
+Author: Moon Cloud Services
+Date: 02/02/25
 """
 
 import torch
