@@ -53,13 +53,45 @@ def setup_logging(output_dir: Path) -> logging.Logger:
     log_file = output_dir / 'training.log'
     logger = logging.getLogger("TrainHybrid")
     logger.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s')
+    
+    # Clear any existing handlers
+    logger.handlers.clear()
+    
+    # Prevent propagation to root logger to avoid duplicate logs
+    logger.propagate = False
+    
+    # Detailed formatter for file logging
+    file_formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(message)s')
     file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
+    file_handler.setFormatter(file_formatter)
+    file_handler.setLevel(logging.DEBUG)  # Full detail in file
+    
+    # Simpler formatter for console output with colors
+    class ColoredFormatter(logging.Formatter):
+        COLORS = {
+            'WARNING': '\033[93m',  # Yellow
+            'ERROR': '\033[91m',    # Red
+            'DEBUG': '\033[94m',    # Blue
+            'INFO': '\033[92m',     # Green
+            'RESET': '\033[0m'      # Reset
+        }
+        
+        def format(self, record):
+            # Don't color INFO messages (default output)
+            if record.levelname != 'INFO':
+                color = self.COLORS.get(record.levelname, '')
+                reset = self.COLORS['RESET']
+                record.msg = f"{color}{record.msg}{reset}"
+            return super().format(record)
+    
+    console_formatter = ColoredFormatter('%(message)s')
     stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
+    stream_handler.setFormatter(console_formatter)
+    stream_handler.setLevel(logging.INFO)  # Less detail in console
+    
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
+    
     return logger
 
 # --------------------------
@@ -208,9 +240,21 @@ class TrainingManager:
     """
     def __init__(self, args):
         self.args = args
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.amp_dtype = torch.float16 if args.mixed_precision else torch.float32
-        self.use_amp = args.mixed_precision
+        # Add force_cpu option
+        self.device = torch.device('cpu' if args.force_cpu else ('cuda' if torch.cuda.is_available() else 'cpu'))
+        self.use_cuda = torch.cuda.is_available() and not args.force_cpu
+        self.amp_dtype = torch.float16 if args.mixed_precision and self.use_cuda else torch.float32
+        self.use_amp = args.mixed_precision and self.use_cuda
+        
+        # Memory management
+        self.memory_tracker = {'allocated': [], 'reserved': []}
+        self.batch_memory_stats = {'peak': 0, 'current': 0}
+        
+        # Dynamic batch size settings (moved before _setup_data)
+        self.current_batch_size = args.batch_size
+        self.min_batch_size = max(1, args.batch_size // 8)
+        self.batch_size_update_freq = 10
+        self.batch_size_cooldown = 0
         
         # Setup directories and logging
         self.output_dir = Path(args.output_dir)
@@ -241,8 +285,16 @@ class TrainingManager:
         self.semantic_weight = args.semantic_weight
         self.baseline_momentum = args.baseline_momentum
         
-        # Initialize gradient scaler for mixed precision
-        self.scaler = torch.amp.GradScaler('cuda') if self.use_amp else None
+        # Initialize gradient scaler for mixed precision (fix deprecation warning)
+        if self.use_amp:
+            try:
+                # New way (PyTorch 2.0+)
+                self.scaler = torch.amp.GradScaler('cuda')
+            except TypeError:
+                # Fallback for older PyTorch versions
+                self.scaler = torch.cuda.amp.GradScaler()
+        else:
+            self.scaler = None
         
         # Training state
         if not hasattr(self, 'global_step'):  # Only set if not loaded from checkpoint
@@ -258,11 +310,75 @@ class TrainingManager:
         # Setup signal handling
         signal.signal(signal.SIGINT, self._handle_interrupt)
         
-        # Ensure CUDA is available
-        if not torch.cuda.is_available():
-            self.logger.error("CUDA is required for training")
-            sys.exit(1)
+        # Ensure CUDA is available only if not forcing CPU
+        if not args.force_cpu and not torch.cuda.is_available():
+            self.logger.warning("CUDA is not available, falling back to CPU training (this will be slow)")
     
+    def _optimize_memory(self):
+        """Optimize memory usage based on device"""
+        if self.use_cuda:
+            # Empty cache and force garbage collection
+            torch.cuda.empty_cache()
+            import gc
+            gc.collect()
+            
+            if hasattr(torch.cuda, 'memory_stats'):
+                stats = torch.cuda.memory_stats()
+                allocated = stats['allocated_bytes.all.current'] / 1e9
+                reserved = stats['reserved_bytes.all.current'] / 1e9
+                self.memory_tracker['allocated'].append(allocated)
+                self.memory_tracker['reserved'].append(reserved)
+                
+                # Log memory state if significant change
+                if len(self.memory_tracker['allocated']) > 1:
+                    prev_allocated = self.memory_tracker['allocated'][-2]
+                    if abs(allocated - prev_allocated) > 0.1:  # More than 100MB change
+                        self.logger.info(f"Memory change detected - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB")
+        else:
+            import gc
+            gc.collect()
+
+    def _adjust_batch_size(self, oom_flag=False):
+        """Dynamically adjust batch size based on memory usage"""
+        if not self.use_cuda or self.batch_size_cooldown > 0:
+            self.batch_size_cooldown = max(0, self.batch_size_cooldown - 1)
+            return False
+
+        if oom_flag:
+            # More aggressive batch size reduction
+            new_batch_size = max(self.min_batch_size, self.current_batch_size // 2)
+            if new_batch_size != self.current_batch_size:
+                self.current_batch_size = new_batch_size
+                self.logger.info(f"Reduced batch size to {self.current_batch_size} due to OOM")
+                
+                # Recreate data loaders with new batch size
+                self._setup_data()
+                
+                # Clear memory
+                self._optimize_memory()
+                
+                # Increase cooldown period
+                self.batch_size_cooldown = 100
+                return True
+        
+        # Monitor memory usage for preemptive adjustment
+        if hasattr(torch.cuda, 'memory_stats'):
+            stats = torch.cuda.memory_stats()
+            allocated = stats['allocated_bytes.all.current'] / 1e9
+            total = torch.cuda.get_device_properties(0).total_memory / 1e9
+            
+            # If memory usage is too high, reduce batch size preemptively
+            if allocated > 0.85 * total and self.current_batch_size > self.min_batch_size:
+                new_batch_size = max(self.min_batch_size, self.current_batch_size - 8)
+                if new_batch_size != self.current_batch_size:
+                    self.current_batch_size = new_batch_size
+                    self.logger.info(f"Preemptively reduced batch size to {self.current_batch_size} due to high memory usage")
+                    self._setup_data()
+                    self.batch_size_cooldown = 50
+                    return True
+        
+        return False
+
     def _setup_models(self):
         """Initialize the generator and teacher models."""
         self.logger.info("Initializing models...")
@@ -287,33 +403,64 @@ class TrainingManager:
                 embedding_dim=self.args.embedding_dim
             ).to(self.device)
             
-            # Configure gradient checkpointing after initialization
-            if hasattr(self.vae, 'enable_gradient_checkpointing'):
-                self.vae.enable_gradient_checkpointing(use_reentrant=False)
-            if hasattr(self.teacher, 'enable_gradient_checkpointing'):
-                self.teacher.enable_gradient_checkpointing(use_reentrant=False)
+            # Configure gradient checkpointing with explicit use_reentrant=False
+            def enable_checkpointing(model):
+                if hasattr(model, 'enable_gradient_checkpointing'):
+                    model.enable_gradient_checkpointing()
+                for module in model.modules():
+                    if hasattr(module, 'gradient_checkpointing'):
+                        module.gradient_checkpointing = True
+                        # Explicitly set use_reentrant=False for all checkpointing
+                        if hasattr(module, 'gradient_checkpointing_kwargs'):
+                            module.gradient_checkpointing_kwargs = {'use_reentrant': False}
+                        if hasattr(module, 'checkpoint_forward'):
+                            def wrapped_checkpoint_forward(*args, **kwargs):
+                                return torch.utils.checkpoint.checkpoint(
+                                    module.forward,
+                                    *args,
+                                    use_reentrant=False,
+                                    **kwargs
+                                )
+                            module.checkpoint_forward = wrapped_checkpoint_forward
             
-            # Print model sizes
-            vae_params = sum(p.numel() for p in self.vae.parameters())
-            teacher_params = sum(p.numel() for p in self.teacher.parameters())
-            self.logger.info(f"VAE parameters: {vae_params:,}")
-            self.logger.info(f"Teacher parameters: {teacher_params:,}")
+            enable_checkpointing(self.vae)
+            enable_checkpointing(self.teacher)
             
-            # Ensure models are in training mode and gradients are enabled
+            # Ensure models are in training mode
             self.vae.train()
             self.teacher.train()
             
-            # Explicitly enable gradients for all parameters
-            for param in self.vae.parameters():
-                param.requires_grad = True
-            for param in self.teacher.parameters():
-                param.requires_grad = True
+            # Count total parameters and trainable parameters
+            def count_parameters(model):
+                total_params = sum(p.numel() for p in model.parameters())
+                trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                return total_params, trainable_params
             
-            # Verify gradient settings
-            vae_grad_params = sum(1 for p in self.vae.parameters() if p.requires_grad)
-            teacher_grad_params = sum(1 for p in self.teacher.parameters() if p.requires_grad)
-            self.logger.info(f"VAE trainable parameters: {vae_grad_params:,}")
-            self.logger.info(f"Teacher trainable parameters: {teacher_grad_params:,}")
+            # Get parameter counts
+            vae_total, vae_trainable = count_parameters(self.vae)
+            teacher_total, teacher_trainable = count_parameters(self.teacher)
+            
+            # Log parameter counts
+            self.logger.info(f"VAE Parameters - Total: {vae_total:,}, Trainable: {vae_trainable:,}")
+            self.logger.info(f"Teacher Parameters - Total: {teacher_total:,}, Trainable: {teacher_trainable:,}")
+            
+            # Explicitly enable gradients for all parameters
+            def enable_gradients(model):
+                for param in model.parameters():
+                    if param.is_leaf:  # Only set requires_grad for leaf tensors
+                        param.requires_grad = True
+            
+            enable_gradients(self.vae)
+            enable_gradients(self.teacher)
+            
+            # Verify gradients are properly enabled
+            vae_total_after, vae_trainable_after = count_parameters(self.vae)
+            teacher_total_after, teacher_trainable_after = count_parameters(self.teacher)
+            
+            if vae_trainable_after != vae_trainable or teacher_trainable_after != teacher_trainable:
+                self.logger.warning("Parameter counts changed after enabling gradients!")
+                self.logger.info(f"VAE Parameters After - Total: {vae_total_after:,}, Trainable: {vae_trainable_after:,}")
+                self.logger.info(f"Teacher Parameters After - Total: {teacher_total_after:,}, Trainable: {teacher_trainable_after:,}")
             
             if self.args.compile:
                 self.logger.info("Compiling models with torch.compile()...")
@@ -380,8 +527,8 @@ class TrainingManager:
         )
     
     def _setup_data(self):
-        """Load dataset and create data loaders for training and validation."""
-        self.logger.info("Loading dataset...")
+        """Load dataset and create data loaders with memory-efficient settings"""
+        self.logger.info("\n=== Initializing Dataset ===")
         try:
             # Check if data directory exists
             if not os.path.exists(self.args.data_dir):
@@ -397,53 +544,41 @@ class TrainingManager:
                 raise ValueError(f"No sprite or label files found in {self.args.data_dir}")
             
             # Initialize dataset with progress monitoring
-            self.logger.info("Initializing dataset...")
             dataset = PixelArtDataset(self.args.data_dir, teacher_model=None)
             self.logger.info(f"Dataset initialized with {len(dataset)} samples")
             
             # Split into train and validation sets
             train_size = int(0.9 * len(dataset))
             val_size = len(dataset) - train_size
-            self.logger.info(f"Splitting dataset: {train_size} training samples, {val_size} validation samples")
+            self.logger.info(f"Dataset split: {train_size} training, {val_size} validation samples")
             
             train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
             
             # Create data loaders with error checking
-            self.logger.info("Creating data loaders...")
+            self.logger.info("\n=== Creating Data Loaders ===")
             
-            # More conservative DataLoader settings
-            self.train_loader = DataLoader(
-                train_dataset,
-                batch_size=self.args.batch_size,
-                shuffle=True,
-                num_workers=min(4, self.args.num_workers),  # Reduce number of workers
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True,
-                multiprocessing_context='spawn',
-                timeout=120  # Add timeout
-            )
+            # More memory-efficient DataLoader settings
+            dataloader_kwargs = {
+                'batch_size': self.current_batch_size,
+                'num_workers': min(2, self.args.num_workers) if self.use_cuda else 0,
+                'pin_memory': self.use_cuda,
+                'prefetch_factor': 2 if self.use_cuda else None,
+                'persistent_workers': self.use_cuda,
+                'multiprocessing_context': 'spawn' if self.use_cuda else None,
+                'timeout': 120,
+                'drop_last': True
+            }
             
-            self.val_loader = DataLoader(
-                val_dataset,
-                batch_size=self.args.batch_size,
-                shuffle=False,
-                num_workers=min(4, self.args.num_workers),  # Reduce number of workers
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True,
-                multiprocessing_context='spawn',
-                timeout=120  # Add timeout
-            )
+            self.train_loader = DataLoader(train_dataset, shuffle=True, **dataloader_kwargs)
+            self.val_loader = DataLoader(val_dataset, shuffle=False, **dataloader_kwargs)
             
             # Test data loading
-            self.logger.info("Testing data loader...")
             test_batch = next(iter(self.train_loader))
-            self.logger.info("Successfully loaded first batch")
-            self.logger.info(f"Batch keys: {test_batch.keys()}")
-            self.logger.info(f"Image shape: {test_batch['image'].shape}")
+            self.logger.info("✓ First batch loaded successfully")
+            self.logger.info(f"✓ Batch structure: {list(test_batch.keys())}")
+            self.logger.info(f"✓ Image shape: {test_batch['image'].shape}")
             
-            self.logger.info("Data loaders created successfully")
+            self.logger.info("Data loaders initialized successfully\n")
             
         except Exception as e:
             self.logger.error(f"Error setting up data: {str(e)}", exc_info=True)
@@ -655,13 +790,32 @@ class TrainingManager:
     
     def _load_checkpoint(self, checkpoint_path):
         """Load model and training state from checkpoint."""
-        self.logger.info(f"Loading checkpoint from {checkpoint_path}")
+        self.logger.info("\n=== Loading Checkpoint ===")
         try:
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)  # Add weights_only=True
             
-            # Load model states
-            self.vae.load_state_dict(checkpoint['vae_state_dict'])
-            self.teacher.load_state_dict(checkpoint['teacher_state_dict'])
+            # Load model states with strict=False to ignore unexpected keys
+            missing_keys_vae, unexpected_keys_vae = self.vae.load_state_dict(
+                checkpoint['vae_state_dict'], strict=False
+            )
+            missing_keys_teacher, unexpected_keys_teacher = self.teacher.load_state_dict(
+                checkpoint['teacher_state_dict'], strict=False
+            )
+            
+            # Log any mismatches
+            if missing_keys_vae or unexpected_keys_vae:
+                self.logger.warning("VAE state dict loading mismatch:")
+                if missing_keys_vae:
+                    self.logger.warning(f"  Missing keys: {missing_keys_vae}")
+                if unexpected_keys_vae:
+                    self.logger.warning(f"  Unexpected keys: {unexpected_keys_vae}")
+            
+            if missing_keys_teacher or unexpected_keys_teacher:
+                self.logger.warning("Teacher state dict loading mismatch:")
+                if missing_keys_teacher:
+                    self.logger.warning(f"  Missing keys: {missing_keys_teacher}")
+                if unexpected_keys_teacher:
+                    self.logger.warning(f"  Unexpected keys: {unexpected_keys_teacher}")
             
             # Load optimizer states
             self.vae_optimizer.load_state_dict(checkpoint['vae_optimizer'])
@@ -675,198 +829,208 @@ class TrainingManager:
             self.global_step = checkpoint['global_step']
             self.best_loss = checkpoint['best_loss']
             
-            self.logger.info(f"Successfully loaded checkpoint from step {self.global_step}")
+            self.logger.info(f"✓ Successfully loaded checkpoint from step {self.global_step}\n")
             return True
         except Exception as e:
             self.logger.error(f"Error loading checkpoint: {str(e)}", exc_info=True)
             return False
     
+    def _process_batch(self, images, batch_idx):
+        """Process a single batch with memory optimization"""
+        # Zero gradients before forward pass
+        self.vae_optimizer.zero_grad(set_to_none=True)
+        self.teacher_optimizer.zero_grad(set_to_none=True)
+        
+        # Ensure input images require gradients
+        images = images.detach().requires_grad_(True)
+        
+        # Forward pass through VAE first
+        with autocast(device_type='cuda' if self.use_cuda else 'cpu', 
+                     dtype=self.amp_dtype) if self.use_amp else nullcontext():
+            recon, mu, logvar = self.vae(images)
+            
+            # Generate prompt embeddings with teacher
+            with torch.no_grad():
+                teacher_out = self.teacher(images)
+                prompt_embeddings = teacher_out['prompt_embedding']
+            
+            # Compute losses
+            # Reconstruction loss (MSE)
+            recon_loss = F.mse_loss(recon, images, reduction='mean')
+            
+            # KL divergence loss with numerical stability
+            kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+            
+            # Teacher evaluation
+            teacher_eval = self.teacher(recon.detach(), prompt_embeddings)
+            quality_scores = teacher_eval['quality_scores']
+            semantic_score = teacher_eval.get('semantic_score', None)
+            
+            # Compute rewards and losses
+            quality_reward = quality_scores.mean(dim=1, keepdim=True)
+            semantic_reward = semantic_score if semantic_score is not None else torch.zeros_like(quality_reward)
+            total_reward = quality_reward + self.semantic_weight * semantic_reward
+            
+            # Update baseline with moving average
+            if self.baseline is None:
+                self.baseline = total_reward.mean().item()
+            else:
+                self.baseline = (self.baseline_momentum * self.baseline + 
+                               (1 - self.baseline_momentum) * total_reward.mean().item())
+            
+            # Compute advantage
+            advantage = (total_reward - self.baseline).detach()
+            advantage = advantage * self.reward_scale
+            
+            # Compute final losses
+            pg_loss = -(advantage * recon_loss).mean()
+            vae_loss = (self.args.recon_weight * recon_loss +
+                       self.args.kl_weight * kl_loss +
+                       pg_loss)
+            
+            quality_loss = -torch.mean(quality_scores)
+            teacher_loss = self.args.quality_weight * quality_loss
+            
+            # Scale losses for gradient accumulation
+            vae_loss = vae_loss / self.args.gradient_accumulation_steps
+            teacher_loss = teacher_loss / self.args.gradient_accumulation_steps
+        
+        # Backward pass with memory optimization
+        if self.use_amp:
+            self.scaler.scale(vae_loss).backward()
+            self.scaler.scale(teacher_loss).backward()
+        else:
+            vae_loss.backward()
+            teacher_loss.backward()
+        
+        # Step if we've accumulated enough gradients
+        if (batch_idx + 1) % self.args.gradient_accumulation_steps == 0:
+            if self.use_amp:
+                self.scaler.unscale_(self.vae_optimizer)
+                self.scaler.unscale_(self.teacher_optimizer)
+                
+            # Clip gradients
+            torch.nn.utils.clip_grad_norm_(self.vae.parameters(), self.args.max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(self.teacher.parameters(), self.args.max_grad_norm)
+            
+            if self.use_amp:
+                self.scaler.step(self.vae_optimizer)
+                self.scaler.step(self.teacher_optimizer)
+                self.scaler.update()
+            else:
+                self.vae_optimizer.step()
+                self.teacher_optimizer.step()
+            
+            # Step schedulers
+            self.vae_scheduler.step()
+            self.teacher_scheduler.step()
+        
+        # Prepare metrics
+        metrics = {
+            'recon_loss': recon_loss.item(),
+            'kl_loss': kl_loss.item(),
+            'quality_loss': quality_loss.item(),
+            'pg_loss': pg_loss.item(),
+            'semantic_reward': semantic_reward.mean().item(),
+            'quality_reward': quality_reward.mean().item(),
+            'baseline': self.baseline,
+            'advantage': advantage.mean().item(),
+            'vae_loss': vae_loss.item(),
+            'teacher_loss': teacher_loss.item(),
+            'total_loss': (vae_loss + teacher_loss).item(),
+            'quality_scores': quality_scores.mean().item()
+        }
+        
+        # Log metrics
+        if self.global_step % self.args.log_every == 0:
+            self._log_metrics(metrics)
+        
+        # Update counters and save samples
+        self.global_step += 1
+        
+        if self.global_step % self.args.eval_save_freq == 0:
+            self._save_eval_samples(recon, teacher_eval, {'image': images})
+        
+        return metrics
+    
     def train(self):
-        """Main training loop with improvements"""
-        self.logger.info("Starting hybrid training...")
+        """Main training loop with improved memory management"""
+        self.logger.info(f"\n=== Environment Information ===")
+        self.logger.info(f"PyTorch Version: {torch.__version__}")
+        self.logger.info(f"CUDA Available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            self.logger.info(f"CUDA Version: {torch.version.cuda}")
+            self.logger.info(f"cuDNN Version: {torch.backends.cudnn.version()}")
+        self.logger.info(f"Training Device: {self.device}")
+        self.logger.info("")
+
+        self.logger.info(f"=== Starting Training ===")
         try:
-            # Initial memory cleanup
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # Initial memory optimization
+            self._optimize_memory()
+            if self.use_cuda:
                 initial_memory = torch.cuda.memory_allocated() / 1e9
                 self.logger.info(f"Initial GPU memory usage: {initial_memory:.2f} GB")
             
-            # Set models to train mode and enable gradients
+            # Set models to train mode
             self.vae.train()
             self.teacher.train()
-            torch.set_grad_enabled(True)
             
-            # Move models to GPU explicitly
-            self.vae = self.vae.cuda()
-            self.teacher = self.teacher.cuda()
+            # Move models to appropriate device
+            self.vae = self.vae.to(self.device)
+            self.teacher = self.teacher.to(self.device)
+            
+            from tqdm import tqdm
             
             for epoch in range(self.args.num_epochs):
                 epoch_start_time = time.time()
                 epoch_losses = []
-                self.logger.info(f"\nEpoch {epoch+1}/{self.args.num_epochs}")
                 
-                # Calculate total steps for this epoch
-                total_steps = len(self.train_loader)
-                batch_times = []
-                
-                self.logger.info("Starting epoch iteration...")
+                # Progress bar for better monitoring
+                pbar = tqdm(total=len(self.train_loader), desc=f"Epoch {epoch+1}/{self.args.num_epochs}")
                 
                 for batch_idx, batch in enumerate(self.train_loader):
-                    self.logger.info(f"Processing batch {batch_idx}")
-                    batch_start_time = time.time()
-                    
                     try:
-                        # Print detailed progress
-                        if batch_idx % 5 == 0:
-                            self.logger.info(
-                                f"Batch {batch_idx}/{total_steps} "
-                                f"({(batch_idx/total_steps)*100:.1f}%) - "
-                                f"Step {self.global_step}"
-                            )
-                            if batch_times:
-                                avg_time = sum(batch_times) / len(batch_times)
-                                eta = avg_time * (total_steps - batch_idx)
-                                self.logger.info(f"Average batch time: {avg_time:.2f}s, ETA: {eta/60:.2f} minutes")
+                        # Move batch to device efficiently
+                        images = batch['image'].to(self.device, non_blocking=True)
                         
-                        # Process batch
-                        try:
-                            # Move images to GPU and generate prompt embeddings
-                            images = batch['image'].cuda(non_blocking=True)
-                            
-                            # Zero gradients before forward pass
-                            self.vae_optimizer.zero_grad(set_to_none=True)
-                            self.teacher_optimizer.zero_grad(set_to_none=True)
-                            
-                            # Forward pass through VAE first
-                            with autocast(device_type='cuda', dtype=self.amp_dtype) if self.use_amp else nullcontext():
-                                recon, mu, logvar = self.vae(images)
-                                
-                                # Generate prompt embeddings with teacher
-                                with torch.no_grad():
-                                    teacher_out = self.teacher(images)
-                                    prompt_embeddings = teacher_out['prompt_embedding']
-                                
-                                # Compute losses
-                                # Reconstruction loss (MSE)
-                                recon_loss = F.mse_loss(recon, images, reduction='mean')
-                                
-                                # KL divergence loss
-                                kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-                                
-                                # Teacher evaluation
-                                teacher_eval = self.teacher(recon.detach(), prompt_embeddings)
-                                quality_scores = teacher_eval['quality_scores']
-                                semantic_score = teacher_eval.get('semantic_score', None)
-                                
-                                # Compute rewards and losses
-                                quality_reward = quality_scores.mean(dim=1, keepdim=True)
-                                semantic_reward = semantic_score if semantic_score is not None else torch.zeros_like(quality_reward)
-                                total_reward = quality_reward + self.semantic_weight * semantic_reward
-                                
-                                # Update baseline
-                                if self.baseline is None:
-                                    self.baseline = total_reward.mean().item()
-                                else:
-                                    self.baseline = (self.baseline_momentum * self.baseline + 
-                                                   (1 - self.baseline_momentum) * total_reward.mean().item())
-                                
-                                # Compute advantage
-                                advantage = (total_reward - self.baseline).detach()
-                                advantage = advantage * self.reward_scale
-                                
-                                # Compute final losses
-                                pg_loss = -(advantage * recon_loss).mean()
-                                vae_loss = (self.args.recon_weight * recon_loss +
-                                          self.args.kl_weight * kl_loss +
-                                          pg_loss)
-                                
-                                quality_loss = -torch.mean(quality_scores)
-                                teacher_loss = self.args.quality_weight * quality_loss
-                                
-                                # Scale losses for gradient accumulation
-                                vae_loss = vae_loss / self.args.gradient_accumulation_steps
-                                teacher_loss = teacher_loss / self.args.gradient_accumulation_steps
-                            
-                            # Backward pass
-                            if self.use_amp:
-                                self.scaler.scale(vae_loss).backward()
-                                self.scaler.scale(teacher_loss).backward()
-                            else:
-                                vae_loss.backward()
-                                teacher_loss.backward()
-                            
-                            # Step if we've accumulated enough gradients
-                            if (batch_idx + 1) % self.args.gradient_accumulation_steps == 0:
-                                if self.use_amp:
-                                    self.scaler.unscale_(self.vae_optimizer)
-                                    self.scaler.unscale_(self.teacher_optimizer)
-                                    
-                                torch.nn.utils.clip_grad_norm_(self.vae.parameters(), self.args.max_grad_norm)
-                                torch.nn.utils.clip_grad_norm_(self.teacher.parameters(), self.args.max_grad_norm)
-                                
-                                if self.use_amp:
-                                    self.scaler.step(self.vae_optimizer)
-                                    self.scaler.step(self.teacher_optimizer)
-                                    self.scaler.update()
-                                else:
-                                    self.vae_optimizer.step()
-                                    self.teacher_optimizer.step()
-                                
-                                # Step schedulers
-                                self.vae_scheduler.step()
-                                self.teacher_scheduler.step()
-                            
-                            # Log metrics
-                            metrics = {
-                                'recon_loss': recon_loss.item(),
-                                'kl_loss': kl_loss.item(),
-                                'quality_loss': quality_loss.item(),
-                                'pg_loss': pg_loss.item(),
-                                'semantic_reward': semantic_reward.mean().item(),
-                                'quality_reward': quality_reward.mean().item(),
-                                'baseline': self.baseline,
-                                'advantage': advantage.mean().item(),
-                                'vae_loss': vae_loss.item(),
-                                'teacher_loss': teacher_loss.item(),
-                                'total_loss': (vae_loss + teacher_loss).item(),
-                                'quality_scores': quality_scores.mean().item()
-                            }
-                            
-                            if self.global_step % self.args.log_every == 0:
-                                self._log_metrics(metrics)
-                                current_memory = torch.cuda.memory_allocated() / 1e9
-                                self.logger.info(
-                                    f"Step {self.global_step} - "
-                                    f"VAE Loss: {metrics['vae_loss']:.4f}, "
-                                    f"Teacher Loss: {metrics['teacher_loss']:.4f}, "
-                                    f"Quality: {metrics['quality_scores']:.4f}, "
-                                    f"GPU Memory: {current_memory:.2f} GB"
-                                )
-                            
-                            # Update counters and save samples
-                            self.global_step += 1
-                            epoch_losses.append(metrics['total_loss'])
-                            
-                            if self.global_step % self.args.eval_save_freq == 0:
-                                self._save_eval_samples(recon, teacher_eval, {'image': images})
-                            
-                            # Update batch timing
-                            batch_time = time.time() - batch_start_time
-                            batch_times.append(batch_time)
-                            
-                            # Cleanup
-                            torch.cuda.empty_cache()
-                            
-                        except RuntimeError as e:
-                            if "out of memory" in str(e):
-                                self.logger.error(f"GPU OOM: {str(e)}")
-                                torch.cuda.empty_cache()
+                        # Process batch with memory optimization
+                        metrics = self._process_batch(images, batch_idx)
+                        
+                        # Update progress bar
+                        pbar.set_postfix({
+                            'loss': f"{metrics['total_loss']:.4f}",
+                            'quality': f"{metrics['quality_scores']:.4f}"
+                        })
+                        pbar.update()
+                        
+                        # Memory stats logging
+                        if self.use_cuda and batch_idx % 10 == 0:
+                            current_memory = torch.cuda.memory_allocated() / 1e9
+                            self.batch_memory_stats['current'] = current_memory
+                            self.batch_memory_stats['peak'] = max(
+                                self.batch_memory_stats['peak'],
+                                current_memory
+                            )
+                        
+                        # Cleanup between batches
+                        self._optimize_memory()
+                        
+                    except RuntimeError as e:
+                        if "out of memory" in str(e):
+                            self.logger.error(f"GPU OOM: {str(e)}")
+                            if self._adjust_batch_size(oom_flag=True):
+                                # Retry with smaller batch size
                                 continue
-                            raise e
-                            
+                            else:
+                                raise e
+                        raise e
+                    
                     except Exception as e:
                         self.logger.error(f"Error in batch {batch_idx}: {str(e)}", exc_info=True)
                         continue
+                
+                pbar.close()
                 
                 # Epoch summary with timing
                 epoch_time = time.time() - epoch_start_time
@@ -962,12 +1126,18 @@ def main():
     parser.add_argument('--baseline_momentum', type=float, default=0.9,
                        help='Momentum for reward baseline updates')
     
+    # Add new arguments for v0.0.4
+    parser.add_argument('--force_cpu', action='store_true',
+                      help='Force CPU training (warning: very slow)')
+    parser.add_argument('--memory_efficient', action='store_true',
+                      help='Enable additional memory optimization')
+    
     args = parser.parse_args()
     
     # Set seeds for reproducibility
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and not args.force_cpu:
         torch.cuda.manual_seed_all(args.seed)
     
     trainer = TrainingManager(args)
